@@ -1,0 +1,68 @@
+Houzdey/
+├── frontend/
+│   ├── public/
+│   │   ├── index.html
+│   │   └── favicon.ico
+│   ├── src/
+│   │   ├── components/
+│   │   │   ├── Layout/
+│   │   │   │   ├── Header.js
+│   │   │   │   └── Footer.js
+│   │   │   ├── PropertyListing/
+│   │   │   │   ├── PropertyCard.js
+│   │   │   │   └── PropertyList.js
+│   │   │   ├── Search/
+│   │   │   │   └── SearchBar.js
+│   │   │   ├── User/
+│   │   │   │   ├── Profile.js
+│   │   │   │   └── Login.js
+│   │   │   └── Chat/
+│   │   │       └── ChatWindow.js
+│   │   ├── pages/
+│   │   │   ├── Home.js
+│   │   │   ├── PropertyDetails.js
+│   │   │   ├── ListProperty.js
+│   │   │   └── UserDashboard.js
+│   │   ├── services/
+│   │   │   ├── api.js
+│   │   │   └── auth.js
+│   │   ├── utils/
+│   │   │   └── helpers.js
+│   │   ├── styles/
+│   │   │   └── global.css
+│   │   ├── App.js
+│   │   └── index.js
+│   ├── package.json
+│   └── tailwind.config.js
+├── backend/
+│   ├── app/
+│   │   ├── api/
+│   │   │   ├── endpoints/
+│   │   │   │   ├── properties.py
+│   │   │   │   ├── users.py
+│   │   │   │   ├── chat.py
+│   │   │   │   └── transactions.py
+│   │   │   ├── models/
+│   │   │   │   ├── property.py
+│   │   │   │   ├── user.py
+│   │   │   │   ├── message.py
+│   │   │   │   └── transaction.py
+│   │   │   └── schemas/
+│   │   │       ├── property.py
+│   │   │       ├── user.py
+│   │   │       ├── message.py
+│   │   │       └── transaction.py
+│   │   ├── core/
+│   │   │   ├── config.py
+│   │   │   └── security.py
+│   │   ├── db/
+│   │   │   └── mongodb.py
+│   │   └── main.py
+│   ├── tests/
+│   │   ├── test_properties.py
+│   │   ├── test_users.py
+│   │   └── test_chat.py
+│   ├── requirements.txt
+│   └── Dockerfile
+├── .gitignore
+└── README.md

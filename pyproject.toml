@@ -1,0 +1,36 @@
+[tool.poetry]
+name = "houzdey_project"
+version = "0.1.0"
+description = ""
+authors = ["el-collins <charlescollins476@gmail.com>"]
+license = "MIT"
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.11"
+fastapi = "^0.110.1"
+uvicorn = "^0.29.0"
+motor = "^3.4.0"
+pydantic = {extras = ["email"], version = "^2.7.0"}
+bcrypt = "4.0.1"
+passlib = {extras = ["cyptography"], version = "^1.7.4"}
+python-dotenv = "^1.0.1"
+pydantic-settings = "^2.2.1"
+python-jose = "^3.3.0"
+pydantic-extra-types = "^2.6.0"
+python-multipart = "^0.0.9"
+requests = "^2.31.0"
+httpx = "^0.27.0"
+pillow = "^10.3.0"
+phonenumbers = "^8.13.34"
+pymongo = "^4.6.3"
+fastapi-mail = "^1.4.1"
+boto3 = "^1.34.87"
+sqlmodel = "^0.0.16"
+emails = "^0.6"
+jinja2 = "^3.1.3"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
