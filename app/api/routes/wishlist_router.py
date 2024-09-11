@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from app.crud import add_to_wishlist, get_user_wishlist
-from app.dependencies import get_current_user
+from app.api.deps import get_current_user
 from app.models import User
 
 router = APIRouter(prefix="/wishlist", tags=["wishlist"])

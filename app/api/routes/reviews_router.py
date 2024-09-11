@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException, Depends
 from app.models import ReviewResponse
 from app.models import User, ReviewCreate, ReviewResponse
-from app.dependencies import get_current_user
+from app.api.deps import get_current_user
 from app.crud import create_review, get_reviews_for_property
 from typing import List
 

@@ -1,6 +1,6 @@
 import requests
 from fastapi import HTTPException, Depends
-from .auth_handler import verify_token
+from .core.security import verify_token
 from db.database import get_collection
 
 GOOGLE_CLIENT_ID = "<your_google_client_id>"

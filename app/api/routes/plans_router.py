@@ -2,8 +2,8 @@ from fastapi import Query
 from fastapi import APIRouter, Depends, HTTPException, Path
 from app.models import pricing_plans_db, PlanBase, User, UserRegister
 from typing import Dict, Optional, Annotated
-from app.dependencies import get_current_user, get_user_plan
-from app.database import user_collection, property_collection
+from app.api.deps import get_current_user, get_user_plan
+from app.core.database import user_collection, property_collection
 from bson import ObjectId
 
 

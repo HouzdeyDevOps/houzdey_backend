@@ -1,8 +1,8 @@
 from app.models import Property, PropertyFeatures, PropertyLocationDetails
 from fastapi import APIRouter, Depends, UploadFile, File, Form, HTTPException  # type: ignore
 from typing import List, Optional
-from app.database import property_collection
-from app.dependencies import get_current_user, get_user_houses_count, get_db_client, get_user_plan
+from app.core.database import property_collection
+from app.api.deps import get_current_user
 from botocore.client import Config
 import boto3  # type: ignore
 from bson import ObjectId

@@ -2,7 +2,7 @@ from datetime import timedelta
 from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, status  # type: ignore
 from fastapi.security import OAuth2PasswordRequestForm  # type: ignore
-from app.auth_handler import (
+from app.core.security import (
     ACCESS_TOKEN_EXPIRE_MINUTES,
     authenticate_user,
     create_access_token
@@ -10,8 +10,8 @@ from app.auth_handler import (
 
 from fastapi.responses import JSONResponse
 from sqlmodel import Session, select
-from app.database import get_db_client, user_collection
-from app.dependencies import get_current_user
+from app.core.database import get_db_client, user_collection
+from app.api.deps import get_current_user
 from app.models import Message, NewPassword, User  # noqa
 from fastapi.security import OAuth2PasswordRequestForm
 from app.utils import (
@@ -24,7 +24,7 @@ from app.utils import (
 )
 from app.crud import get_user
 from datetime import timedelta
-from app.config import settings
+from app.core.config import settings
 
 
 # Initialize the APIRouter with a prefix of "/auth" and a tag of "auth"

@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException, Depends, status, Body, UploadFile, File
-from app.database import property_collection
-from app.dependencies import get_current_user
+from app.core.database import property_collection
+from app.api.deps import get_current_user
 from app.models import (
     PropertyBase,
     PropertyUpdate,

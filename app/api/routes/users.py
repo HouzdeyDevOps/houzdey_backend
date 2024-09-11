@@ -14,9 +14,9 @@ from app.crud import (
     remove_from_wishlist,
 )
 from passlib.context import CryptContext  # type: ignore
-from app.dependencies import get_current_user
+from app.api.deps import get_current_user
 from fastapi.security import OAuth2PasswordRequestForm
-from app.database import get_db_client, user_collection
+from app.core.database import get_db_client, user_collection
 from bson import ObjectId
 
 
@@ -33,7 +33,7 @@ from fastapi import Response
 from botocore.exceptions import NoCredentialsError
 
 
-router = APIRouter(prefix="/api", tags=["users"])
+router = APIRouter()
 
 # Initialize Passlib's CryptContext
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")

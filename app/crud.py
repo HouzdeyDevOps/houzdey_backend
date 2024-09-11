@@ -1,6 +1,6 @@
 from app.utils import verify_password
 from typing import List
-from app.database import user_collection, wishlist_collection, review_collection
+from app.core.database import user_collection, wishlist_collection, review_collection
 from app.models import UserResponse, User, ReviewCreate, ReviewResponse
 from bson import ObjectId  # type: ignore
 

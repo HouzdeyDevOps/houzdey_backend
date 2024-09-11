@@ -1,12 +1,10 @@
 import secrets
 from typing import Annotated, Any, Literal
-import app.config
 from pydantic import (
     AnyUrl,
     BeforeValidator,
     computed_field,
 )
-from pydantic_core import MultiHostUrl
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -22,8 +20,6 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=".env", env_ignore_empty=True, extra="ignore"
     )
-    PROJECT_NAME: str = "myHome"
-    FRONTEND_URL: AnyUrl = "https://homely.com.ng/"
     API_V1_STR: str = "/api/v1"
     SECRET_KEY: str = secrets.token_urlsafe(32)
     # 60 minutes * 24 hours * 8 days = 8 days
@@ -31,15 +27,30 @@ class Settings(BaseSettings):
     DOMAIN: str = "localhost"
     ENVIRONMENT: Literal["local", "staging", "production"] = "local"
 
-    BACKEND_CORS_ORIGINS: Annotated[list[AnyUrl] | str, BeforeValidator(parse_cors)] = (
-        []
-    )
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def server_host(self) -> str:
+        # Use HTTPS for anything other than local development
+        if self.ENVIRONMENT == "local":
+            return f"http://{self.DOMAIN}"
+        return f"https://{self.DOMAIN}"
+
+    BACKEND_CORS_ORIGINS: Annotated[
+        list[AnyUrl] | str, BeforeValidator(parse_cors)
+    ] = []
+
+    # BACKEND_CORS_ORIGINS: Annotated[list[AnyUrl] | str, BeforeValidator(parse_cors)] = (
+    #     []
+    # )
+
+    PROJECT_NAME: str = "houzdey"
+    FRONTEND_URL: AnyUrl = "https://houzdey.com/"
 
     ALGORITHM: str = "HS256"
     EMAIL_RESET_PASSWORD_EXPIRE_MINUTES: int = 10
     EMAIL_VERIFY_EMAIL_EXPIRE_MINUTES: int = 60 * 24 * 8
-    EMAILS_FROM_NAME: str = "Homely"
-    EMAILS_FROM_EMAIL: str = "support@homely.com.ng"
+    EMAILS_FROM_NAME: str = "houzdey"
+    EMAILS_FROM_EMAIL: str = "support@houzdey.com"
 
     SMTP_TLS: bool = True
     SMTP_SSL: bool = False
