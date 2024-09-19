@@ -2,13 +2,14 @@ from backups.modelss import Property, PropertyFeatures, PropertyLocationDetails
 from fastapi import APIRouter, Depends, UploadFile, File, Form, HTTPException  # type: ignore
 from typing import List, Optional
 from app.core.database import property_collection
-from app.api.deps import get_current_user, get_user_houses_count, get_db_client, get_user_plan
+from app.api.deps import get_current_user
 from botocore.client import Config
 import boto3  # type: ignore
 from bson import ObjectId
 from app.settings import settings
 
 router = APIRouter()
+
 
 
 s3 = boto3.client(
@@ -63,23 +64,6 @@ async def create_properties(
     # if 'plan' not in current_user:
     # todo and a plan key with a value of 'Basic'
 
-    all_properties_cursor = property_collection.find()
-    all_properties = await all_properties_cursor.to_list(length=None)
-
-    user_properties = [
-        x for x in all_properties if x['owner_id'] == str(current_user["id"])]
-
-    # Define plan limits
-    plan_limits = {
-        'Basic': 12,
-        'Standard': 7,
-        'Premium': 12
-    }
-
-    # Check if user has reached the limit for their plan
-    for plan, limit in plan_limits.items():
-        if len(user_properties) >= limit and ('plan' not in current_user or current_user['plan'] == plan):
-            raise HTTPException(status_code=400, detail=f"You have reached the limit of {limit} properties per user. Upgrade to a higher plan.")
 
     property_location_details = PropertyLocationDetails.parse_raw(
         property_location_details
@@ -243,4 +227,3 @@ async def update_property(
         raise HTTPException(status_code=404, detail="Property not found")
 
     return {"message": "Property updated successfully"}
-

@@ -2,8 +2,8 @@ from typing import Any, Annotated, Optional
 
 from pydantic import BaseModel
 from fastapi import APIRouter, Depends, HTTPException, status
+from app.models.user import User
 from app.settings import settings
-from app.models import User
 from fastapi.responses import JSONResponse
 from app.crud import (
     add_to_wishlist,

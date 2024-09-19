@@ -1,8 +1,9 @@
+from app.models.user import User, UserResponse
 from app.utils import verify_password
 from typing import List
-from app.core.database import user_collection, wishlist_collection, review_collection
-from app.models import UserResponse, User, ReviewCreate, ReviewResponse
-from bson import ObjectId  # type: ignore
+from app.core.database import user_collection, wishlist_collection
+from bson import ObjectId
+
 
 
 async def get_user(email: str):
@@ -88,15 +89,15 @@ async def remove_from_wishlist(user_id: str, property_id: str):
     )
 
 
-async def create_review(review_data: ReviewCreate):
-    result = await review_collection.insert_one(review_data.dict())
-    return str(result.inserted_id)
+# async def create_review(review_data: ReviewCreate) -> str:
+#     result = await review_collection.insert_one(review_data.dict())
+#     return str(result.inserted_id)
 
 
-async def get_reviews_for_property(property_id: str) -> List[ReviewResponse]:
-    reviews = []
-    async for review in review_collection.find({"property_id": property_id}):
-        review_id = str(review.get('_id', ''))
-        review_data = {**review, 'id': review_id}
-        reviews.append(ReviewResponse(**review_data))
-    return reviews
+# async def get_reviews_for_property(property_id: str) -> List[ReviewResponse]:
+#     reviews = []
+#     async for review in review_collection.find({"property_id": property_id}):
+#         review_id = str(review.get('_id', ''))
+#         review_data = {**review, 'id': review_id}
+#         reviews.append(ReviewResponse(**review_data))
+#     return reviews

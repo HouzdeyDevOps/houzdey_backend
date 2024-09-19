@@ -1,6 +1,6 @@
 from fastapi import Query
 from fastapi import APIRouter, Depends, HTTPException, Path
-from app.models import pricing_plans_db, PlanBase, User, UserRegister
+from backups.modelss import pricing_plans_db, PlanBase, User, UserRegister
 from typing import Dict, Optional, Annotated
 from app.api.deps import get_current_user, get_user_plan
 from app.core.database import user_collection, property_collection

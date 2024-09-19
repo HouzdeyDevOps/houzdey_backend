@@ -1,246 +1,225 @@
-from app.models import Property, PropertyFeatures, PropertyLocationDetails
-from fastapi import APIRouter, Depends, UploadFile, File, Form, HTTPException  # type: ignore
-from typing import List, Optional
+from bson import ObjectId
+from fastapi import APIRouter, Depends, Query, UploadFile, File, Form, HTTPException  # type: ignore
+from typing import Annotated, List
+from fastapi.responses import JSONResponse
+from pymongo import ASCENDING, DESCENDING
 from app.core.database import property_collection
 from app.api.deps import get_current_user
-from botocore.client import Config
-import boto3  # type: ignore
-from bson import ObjectId
+from app.models.properties import Property, PropertyCreate, PropertyUpdate
 from app.settings import settings
+import cloudinary
+import cloudinary.uploader
+import json
+from fastapi import status
+
+from datetime import datetime
+
 
 router = APIRouter()
 
-
-s3 = boto3.client(
-    "s3",
-    region_name="eu-north-1",
-    aws_access_key_id=settings.S3_ACCESS_KEY,
-    aws_secret_access_key=settings.S3_SECRET_KEY,
-    config=Config(signature_version="s3v4"),
+# Setup Cloudinary
+cloudinary.config(
+    cloud_name=settings.CLOUDINARY_CLOUD_NAME,
+    api_key=settings.CLOUDINARY_API_KEY,
+    api_secret=settings.CLOUDINARY_API_SECRET,
 )
 
 
-# CREATE PROPERTY
-@router.post("/properties/")
-async def create_properties(
-    current_user=Depends(get_current_user),
-    name: str = Form(...),
-    price: float = Form(...),
-    property_type: str = Form(...),
-    phone_number: str = Form(...),
-    property_location_details: str = Form(...),
-    property_features: str = Form(...),
+@router.post(
+    "/properties/",
+    status_code=201,
+)
+async def create_property(
+    property_data: str = Form(...),
     images: List[UploadFile] = File(...),
-    # review_id: Optional[str] = None
-
+    current_user: str = Depends(get_current_user),
 ):
-    """
-    FORMATS:
-    name: str,
-    price: float,
-    property_type: str,
-    phone_number: str,
+    # Parse property_data as JSON
+    property_data_dict = json.loads(property_data)
 
-    property location details:
-    {
-        "street_address": "123 Main St",
-        "area": "Downtown",
-        "state": "NY"
-    }
+    # Validate property data using Pydantic model
+    property_create = PropertyCreate(**property_data_dict)
 
-    property features:
-    {
-        "number_of_rooms": 3,
-        "number_of_toilets": 2,
-        "running_water": true,
-        "electricity": true,
-        "POP_available": true
-    }
-
-
-    """
-
-    # if 'plan' not in current_user:
-    # todo and a plan key with a value of 'Basic'
-
-    all_properties_cursor = property_collection.find()
-    all_properties = await all_properties_cursor.to_list(length=None)
-
-    user_properties = [
-        x for x in all_properties if x['owner_id'] == str(current_user["id"])]
-
-    # Define plan limits
-    plan_limits = {
-        'Basic': 12,
-        'Standard': 7,
-        'Premium': 12
-    }
-
-    # Check if user has reached the limit for their plan
-    for plan, limit in plan_limits.items():
-        if len(user_properties) >= limit and ('plan' not in current_user or current_user['plan'] == plan):
-            raise HTTPException(status_code=400, detail=f"You have reached the limit of {limit} properties per user. Upgrade to a higher plan.")
-
-    property_location_details = PropertyLocationDetails.parse_raw(
-        property_location_details
-    )
-    property_features = PropertyFeatures.parse_raw(property_features)
-    property = Property(
-        name=name,
-        price=price,
-        property_type=property_type,
-        phone_number=phone_number,
-        property_location_details=property_location_details,
-        property_features=property_features,
-    )
-
-    # Save property details to MongoDB without the images
-    property_dict = property.dict()
-    property_dict["owner_id"] = str(current_user["id"])
-    # property_dict["review_id"] = str(review_id)
-    result = await property_collection.insert_one(property_dict)
-    property_id = str(result.inserted_id)
-
-    # Save images to S3 and get their keys
-    image_keys = []
+    # Upload images to Cloudinary
+    image_urls = []
     for image in images:
-        image_key = f"properties images/{str(current_user['id'])}/{property_id}/{image.filename}"
-        s3.upload_fileobj(image.file, settings.BUCKET_NAME, image_key)
-        image_keys.append(image_key)
+        image_key = f"{current_user['id']}/{image.filename}"
+        result = cloudinary.uploader.upload(image.file, public_id=image_key)
+        # result = cloudinary.uploader.upload(image.file)
+        # image_urls.append(result["secure_url"])
 
-    # Update the property document in MongoDB with the image keys
+    # Prepare property data
+    property_dict = property_create.dict()
+    property_dict["images"] = image_urls
+    property_dict["owner_id"] = str(current_user["id"])
+    property_dict["created_at"] = datetime.utcnow()
+    property_dict["updated_at"] = datetime.utcnow()
+    property_dict["bookmarked_by_count"] = 0
+    property_dict["view_count"] = 0
+
+    # Insert into database
+    result = await property_collection.insert_one(property_dict)
+
+    # Add the id to the document
     await property_collection.update_one(
-        {"_id": result.inserted_id}, {
-            "$set": {"id": property_id, "images": image_keys}}
+        {"_id": result.inserted_id}, {"$set": {"id": str(result.inserted_id)}}
     )
 
-    return {"id": property_id}
+    response_data = {
+        "status": "success",
+        "message": "Property created successfully",
+    }
 
-
-# GET ALL PROPERTIES
-@router.get("/properties/")
-async def get_properties():
-    properties = []
-    async for property in property_collection.find():
-        property["_id"] = str(property["_id"])  # Convert ObjectId to string
-        # property["images"] = [get_image_url(key) for key in property["images"]]
-        property["images"] = [get_image_url(key) for key in property.get("images", [])]
-        properties.append(property)
-    return properties
-
-
-def get_image_url(key: str):
-    url = s3.generate_presigned_url(
-        "get_object", Params={"Bucket": settings.BUCKET_NAME, "Key": key}, ExpiresIn=3600
-    )
-    return url
-
+    return JSONResponse(status_code=status.HTTP_201_CREATED, content=response_data)
 
 
 # GET A USER'S PROPERTIES
-@router.get("/users/me/properties")
+@router.get("/users/me/properties/")
 async def get_user_properties(current_user=Depends(get_current_user)):
     user_id = str(current_user["id"])
 
     properties = []
     async for property in property_collection.find({"owner_id": user_id}):
-        property["_id"] = str(property["_id"])  # Convert ObjectId to string
-        property["images"] = [get_image_url(key) for key in property["images"]]
         properties.append(property)
+
     if not properties:
         raise HTTPException(status_code=404, detail="No properties found for this user")
     return properties
 
 
-# DELETE A USER'S PROPERTY
-@router.delete("/users/me/properties/{property_id}")
-async def delete_property(property_id: str, current_user=Depends(get_current_user)):
-    user_id = str(current_user["id"])
-    property = await property_collection.find_one(
-        {"id": property_id, "owner_id": user_id}
-    )
-    if property is None:
+# # GET ALL PROPERTIES , response_model=List[Property]
+# @router.get("/properties/")
+# async def get_all_properties():
+#     # .to_list(1000)
+#     properties = []
+#     try:
+#         async for property in property_collection.find():
+#             property["_id"] = str(property["_id"])  # Convert ObjectId to string
+#             properties.append(property)
+#         return properties
+#     except Exception as e:
+#         print(e)
+#         return []
+
+
+@router.get("/properties/")
+async def get_all_properties(
+    location_state: Annotated[
+        str | None, Query(description="State where the property is located")
+    ] = None,
+    location_area: Annotated[
+        str | None, Query(description="Area where the property is located")
+    ] = None,
+    min_price: Annotated[float | None, Query(description="Minimum price")] = None,
+    max_price: Annotated[float | None, Query(description="Maximum price")] = None,
+    property_type: Annotated[str | None, Query(...)] = None,
+    bedrooms: Annotated[int | None, Query(...)] = None,
+    bathrooms: Annotated[int | None, Query(...)] = None,
+    furnishing: Annotated[str | None, Query(...)] = None,
+    condition: Annotated[str | None, Query(...)] = None,
+    facilities: Annotated[List[str] | None, Query(...)] = None,
+    sort_by: Annotated[str | None, Query(...)] = "price",
+    sort_order: Annotated[str | None, Query(...)] = "asc",
+):
+    filter_query = {}
+    if location_state:
+        filter_query["location_state"] = location_state
+    if location_area:
+        filter_query["location_area"] = location_area
+    if property_type:
+        filter_query["property_type"] = property_type
+    if bedrooms:
+        filter_query["bedrooms"] = bedrooms
+    if bathrooms:
+        filter_query["bathrooms"] = bathrooms
+    if furnishing:
+        filter_query["furnishing"] = furnishing
+    if condition:
+        filter_query["condition"] = condition
+    if facilities:
+        filter_query["facilities"] = {"$all": facilities}
+
+    if min_price is not None or max_price is not None:
+        price_query = {}
+        if min_price is not None:
+            price_query["$gte"] = min_price
+        if max_price is not None:
+            price_query["$lte"] = max_price
+        filter_query["price"] = price_query
+
+    sort_direction = ASCENDING if sort_order.lower() == "asc" else DESCENDING
+    sort_options = [(sort_by, sort_direction)]
+
+    properties = []
+    try:
+        cursor = property_collection.find(filter_query).sort(sort_options)
+        async for property in cursor:
+            property["_id"] = str(property["_id"])  # Convert ObjectId to string
+            properties.append(property)
+        return properties
+    except Exception as e:
+        print(e)
+        return []
+
+
+# GET A PROPERTY BY ID 66eb45085bc5f324f674a07f
+@router.get("/properties/{property_id}")
+async def get_property_by_id(property_id: str):
+    property_obj = await property_collection.find_one({"_id": ObjectId(property_id)})
+    if not property_obj:
         raise HTTPException(status_code=404, detail="Property not found")
+    return Property(**property_obj)
 
-    # Delete images from S3 bucket
-    for image_key in property["images"]:
-        s3.delete_object(Bucket=settings.BUCKET_NAME, Key=image_key)
-    # Delete property from MongoDB
 
-    await property_collection.delete_one({"id": property_id, "owner_id": user_id})
+# DELETE A USER'S PROPERTY
+@router.delete("/properties/{property_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_user_property(
+    property_id: str, current_user=Depends(get_current_user)
+):
+    property_obj = await property_collection.find_one({"_id": ObjectId(property_id)})
+    if not property_obj:
+        raise HTTPException(status_code=404, detail="Property not found")
+    if property_obj["owner_id"] != str(current_user["id"]):
+        raise HTTPException(
+            status_code=403, detail="Not authorized to delete this property"
+        )
 
-    return {"message": "Property and associated images deleted successfully"}
+    delete_result = await property_collection.delete_one({"_id": ObjectId(property_id)})
+    if delete_result.deleted_count == 0:
+        raise HTTPException(status_code=400, detail="Property deletion failed")
+
+    response_data = {
+        "status": "success",
+        "message": "Property deleted successfully",
+    }
+    return JSONResponse(status_code=status.HTTP_204_NO_CONTENT, content=response_data)
 
 
 # UPDATE A USER'S PROPERTY
-@router.put("/properties/{property_id}")
-async def update_property(
+@router.put("/properties/{property_id}", response_model=Property)
+async def update_user_property(
     property_id: str,
-    current_user=Depends(get_current_user),
-    name: str = Form(None),
-    price: float = Form(None),
-    property_type: str = Form(None),
-    phone_number: str = Form(None),
-    property_location_details: str = Form(None),
-    property_features: str = Form(None),
-    images: Optional[List[UploadFile]] = File(None),
+    property_update: PropertyUpdate,
+    current_user: dict = Depends(get_current_user),
 ):
-    """
-    FORMATS:
-    name: str,
-    price: float,
-    property_type: str,
-    phone_number: str,
-    
-    property location details:
-    {
-        "street_address": "123 Main St",
-        "area": "Downtown",
-        "state": "NY"
-    }
-
-    property features:
-    {
-        "number_of_rooms": 3,
-        "number_of_toilets": 2,
-        "running_water": true,
-        "electricity": true,
-        "POP_available": true
-    }
-
-
-    """
-    property_dict = {}
-    print(images)
-    if name is not None:
-        property_dict["name"] = name
-    if price is not None:
-        property_dict["price"] = price
-    if property_type is not None:
-        property_dict["property_type"] = property_type
-    if phone_number is not None:
-        property_dict["phone_number"] = phone_number
-    if property_location_details is not None:
-        property_dict["property_location_details"] = PropertyLocationDetails.parse_raw(property_location_details)
-    if property_features is not None:
-        property_dict["property_features"] = PropertyFeatures.parse_raw(property_features)
-
-    # if images is not None:
-    if images and len(images) > 0:  # Change this line
-        image_keys = []
-        for image in images:
-            image_key = f"properties images/{str(current_user['id'])}/{property_id}/{image.filename}"
-            s3.upload_fileobj(image.file, settings.BUCKET_NAME, image_key)
-            image_keys.append(image_key)
-        property_dict["images"] = image_keys
-
-    result = await property_collection.update_one(
-        {"_id": ObjectId(property_id), "owner_id": str(current_user["id"])},
-        {"$set": property_dict},
-    )
-
-    if result.matched_count == 0:
+    property_obj = await property_collection.find_one({"_id": ObjectId(property_id)})
+    if not property_obj:
         raise HTTPException(status_code=404, detail="Property not found")
+    if property_obj["owner_id"] != str(current_user["id"]):
+        raise HTTPException(
+            status_code=403, detail="Not authorized to update this property"
+        )
 
-    return {"message": "Property updated successfully"}
+    update_data = property_update.dict(exclude_unset=True)
+    update_data["updated_at"] = datetime.utcnow()
 
+    update_result = await property_collection.update_one(
+        {"_id": ObjectId(property_id)}, {"$set": update_data}
+    )
+    if update_result.modified_count == 0:
+        raise HTTPException(status_code=400, detail="Property update failed")
+
+    updated_property = await property_collection.find_one(
+        {"_id": ObjectId(property_id)}
+    )
+    return Property(**updated_property)

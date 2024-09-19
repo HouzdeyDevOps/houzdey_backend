@@ -47,5 +47,12 @@ class Settings(BaseSettings):
     S3_SECRET_KEY: str = "sOQmieImU0aFLmPn+/xAPjbWmyDlMG3RLtBTwNSJ"
     BUCKET_NAME: str = "myhome1"
 
+    CLOUDINARY_CLOUD_NAME: str
+    CLOUDINARY_API_KEY: str
+    CLOUDINARY_API_SECRET: str
+
+    CLOUDINARY_URL: str
+
+
 
 settings = Settings()

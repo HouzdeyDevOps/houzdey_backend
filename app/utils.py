@@ -3,7 +3,6 @@ from typing import Any
 from app.core.config import settings
 from jose import jwt, JWTError
 from passlib.context import CryptContext
-from app.models import TokenData
 from pydantic import ValidationError
 from fastapi import HTTPException, status
 from jinja2 import Template
@@ -12,6 +11,8 @@ from pathlib import Path
 import smtplib
 import ssl
 from email.message import EmailMessage
+
+from app.models.user import TokenData
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
