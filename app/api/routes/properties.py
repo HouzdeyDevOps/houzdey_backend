@@ -1,7 +1,8 @@
 from bson import ObjectId
 from fastapi import APIRouter, Depends, Query, UploadFile, File, Form, HTTPException  # type: ignore
-from typing import Annotated, List
+from typing import Annotated, List, Union
 from fastapi.responses import JSONResponse
+from pydantic import BaseModel, Field
 from pymongo import ASCENDING, DESCENDING
 from app.core.database import property_collection
 from app.api.deps import get_current_user
@@ -102,7 +103,7 @@ async def get_user_properties(current_user=Depends(get_current_user)):
 #         return []
 
 
-@router.get("/properties/")
+@router.get("/properties")
 async def get_all_properties(
     location_state: Annotated[
         str | None, Query(description="State where the property is located")
@@ -110,8 +111,10 @@ async def get_all_properties(
     location_area: Annotated[
         str | None, Query(description="Area where the property is located")
     ] = None,
-    min_price: Annotated[float | None, Query(description="Minimum price")] = None,
-    max_price: Annotated[float | None, Query(description="Maximum price")] = None,
+    min_price: Annotated[Union[float, str, None], Query(description="Minimum price", gt=0)] = None,
+    max_price: Annotated[Union[float, str, None], Query(description="Maximum price", gt=0)] = None,
+    # min_price: Annotated[float | None, Query(description="Minimum price", gt=0)] = None,
+    # max_price: Annotated[float | None, Query(description="Maximum price", gt=0)] = None,
     property_type: Annotated[str | None, Query(...)] = None,
     bedrooms: Annotated[int | None, Query(...)] = None,
     bathrooms: Annotated[int | None, Query(...)] = None,
@@ -121,29 +124,35 @@ async def get_all_properties(
     sort_by: Annotated[str | None, Query(...)] = "price",
     sort_order: Annotated[str | None, Query(...)] = "asc",
 ):
+    min_price = int(min_price) 
+    max_price = int(max_price)
+
     filter_query = {}
-    if location_state:
+    if location_state and location_state != "" and location_state != "null":
         filter_query["location_state"] = location_state
-    if location_area:
+    if location_area and location_area != "" and location_area != "null":
         filter_query["location_area"] = location_area
-    if property_type:
+    if property_type and property_type != "" and property_type != "null":
         filter_query["property_type"] = property_type
-    if bedrooms:
+    if bedrooms and bedrooms != "" and bedrooms != "null":
         filter_query["bedrooms"] = bedrooms
-    if bathrooms:
+    if bathrooms and bathrooms != "" and bathrooms != "null":
         filter_query["bathrooms"] = bathrooms
-    if furnishing:
+    if furnishing and furnishing != "" and furnishing != "null":
         filter_query["furnishing"] = furnishing
-    if condition:
+    if condition and condition != "" and condition != "null":
         filter_query["condition"] = condition
-    if facilities:
+    if facilities and facilities != "" and facilities != "null":
         filter_query["facilities"] = {"$all": facilities}
+
+    
 
     if min_price is not None or max_price is not None:
         price_query = {}
-        if min_price is not None:
+    # if price state and if not an empty
+        if min_price is not None and min_price < max_price and max_price != "":
             price_query["$gte"] = min_price
-        if max_price is not None:
+        if max_price is not None and max_price != "" and max_price > min_price:
             price_query["$lte"] = max_price
         filter_query["price"] = price_query
 

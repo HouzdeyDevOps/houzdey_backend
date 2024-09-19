@@ -37,7 +37,6 @@ class Property(BaseModel):
 
 
     facilities: List[str] = Field(None, description="List of facilities (e.g., Running Water, Power Supply)")
-    
     listing_by: str = Field(..., description="Listed by (owner/agent)")
     
 
