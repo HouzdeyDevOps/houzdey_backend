@@ -37,7 +37,6 @@ class Property(BaseModel):
 
 
     facilities: List[str] = Field(None, description="List of facilities (e.g., Running Water, Power Supply)")
-    # amenities: List[str] = Field(None, description="List of amenities (e.g., Swimming Pool, Gym)")
     
     listing_by: str = Field(..., description="Listed by (owner/agent)")
     
@@ -61,7 +60,6 @@ class PropertyCreate(BaseModel):
     agency_fee: float | None = None
     other_fees: float | None = None
     facilities: List[str] = []
-    amenities: List[str] = []
     listing_by: str
 
 
