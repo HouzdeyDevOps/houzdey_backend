@@ -2,7 +2,6 @@ from bson import ObjectId
 from fastapi import APIRouter, Depends, Query, UploadFile, File, Form, HTTPException  # type: ignore
 from typing import Annotated, List, Union
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, Field
 from pymongo import ASCENDING, DESCENDING
 from app.core.database import property_collection
 from app.api.deps import get_current_user
@@ -44,19 +43,23 @@ async def create_property(
     # Upload images to Cloudinary
     image_urls = []
     for image in images:
-        image_key = f"{current_user['id']}/{image.filename}"
-        result = cloudinary.uploader.upload(image.file, public_id=image_key)
-        # result = cloudinary.uploader.upload(image.file)
-        # image_urls.append(result["secure_url"])
+        result = cloudinary.uploader.upload(image.file)
+        image_urls.append(result["secure_url"])
+
+    # Prepare property title
+    title = f"{property_create.furnishing.capitalize() if property_create.furnishing == 'furnished' else ''} {str(property_create.bedrooms) + 'bedroom' if property_create.bedrooms else ''} {property_create.property_type.capitalize()} in {property_create.estate_name.capitalize() + ',' if property_create.estate_name else ''} {property_create.location_area.capitalize()}"
 
     # Prepare property data
     property_dict = property_create.dict()
+    property_dict["title"] = title
     property_dict["images"] = image_urls
     property_dict["owner_id"] = str(current_user["id"])
     property_dict["created_at"] = datetime.utcnow()
     property_dict["updated_at"] = datetime.utcnow()
     property_dict["bookmarked_by_count"] = 0
     property_dict["view_count"] = 0
+
+    #  condition
 
     # Insert into database
     result = await property_collection.insert_one(property_dict)
@@ -89,6 +92,74 @@ async def get_user_properties(current_user=Depends(get_current_user)):
 
 
 # # GET ALL PROPERTIES , response_model=List[Property]
+
+@router.get("/properties")
+async def get_all_properties(
+    search: Annotated[
+        str | None, Query(description="Search term for address, neighborhood, city, or ZIP")
+    ] = None,
+    min_price: Annotated[
+        Union[float, str, None], Query(description="Minimum price")
+    ] = None,
+    max_price: Annotated[
+        Union[float, str, None], Query(description="Maximum price")
+    ] = None,
+    property_type: Annotated[str | None, Query(...)] = None,
+    bedrooms: Annotated[Union[int, str, None], Query(...)] = None,
+    bathrooms: Annotated[Union[int, str, None], Query(...)] = None,
+    furnishing: Annotated[str | None, Query(...)] = None,
+    condition: Annotated[str | None, Query(...)] = None,
+    facilities: Annotated[List[str] | None, Query(...)] = None,
+    sort_by: Annotated[str | None, Query(...)] = "price",
+    sort_order: Annotated[str | None, Query(...)] = "asc",
+):
+    filter_query = {}
+
+    if search:
+        filter_query["$or"] = [
+            {"property_address": {"$regex": search, "$options": "i"}},
+            {"location_area": {"$regex": search, "$options": "i"}},
+            {"location_state": {"$regex": search, "$options": "i"}},
+        ]
+
+    if property_type:
+        filter_query["property_type"] = property_type
+    if bedrooms:
+        filter_query["bedrooms"] = int(bedrooms)
+    if bathrooms:
+        filter_query["bathrooms"] = int(bathrooms)
+    if furnishing:
+        filter_query["furnishing"] = furnishing
+    if condition:
+        filter_query["condition"] = condition
+    if facilities and isinstance(facilities, list) and facilities != [""]:
+        filter_query["facilities"] = {"$all": facilities}
+
+    if min_price is not None or max_price is not None:
+        price_query = {}
+        if min_price is not None:
+            price_query["$gte"] = float(min_price)
+        if max_price is not None:
+            price_query["$lte"] = float(max_price)
+        filter_query["price"] = price_query
+
+    sort_direction = ASCENDING if sort_order.lower() == "asc" else DESCENDING
+    sort_options = [(sort_by, sort_direction)]
+
+    try:
+        cursor = property_collection.find(filter_query).sort(sort_options)
+        properties = []
+        async for property in cursor:
+            property["_id"] = str(property["_id"])  # Convert ObjectId to string
+            properties.append(property)
+        return properties
+    except Exception as e:
+        print(f"Error in get_all_properties: {e}")
+        return []
+
+
+
+
 # @router.get("/properties/")
 # async def get_all_properties():
 #     # .to_list(1000)
@@ -103,72 +174,84 @@ async def get_user_properties(current_user=Depends(get_current_user)):
 #         return []
 
 
-@router.get("/properties")
-async def get_all_properties(
-    location_state: Annotated[
-        str | None, Query(description="State where the property is located")
-    ] = None,
-    location_area: Annotated[
-        str | None, Query(description="Area where the property is located")
-    ] = None,
-    min_price: Annotated[Union[float, str, None], Query(description="Minimum price", gt=0)] = None,
-    max_price: Annotated[Union[float, str, None], Query(description="Maximum price", gt=0)] = None,
-    # min_price: Annotated[float | None, Query(description="Minimum price", gt=0)] = None,
-    # max_price: Annotated[float | None, Query(description="Maximum price", gt=0)] = None,
-    property_type: Annotated[str | None, Query(...)] = None,
-    bedrooms: Annotated[int | None, Query(...)] = None,
-    bathrooms: Annotated[int | None, Query(...)] = None,
-    furnishing: Annotated[str | None, Query(...)] = None,
-    condition: Annotated[str | None, Query(...)] = None,
-    facilities: Annotated[List[str] | None, Query(...)] = None,
-    sort_by: Annotated[str | None, Query(...)] = "price",
-    sort_order: Annotated[str | None, Query(...)] = "asc",
-):
-    min_price = int(min_price) 
-    max_price = int(max_price)
+# @router.get("/properties")
+# async def get_all_properties(
+#     location_state: Annotated[
+#         str | None, Query(description="State where the property is located")
+#     ] = None,
+#     location_area: Annotated[
+#         str | None, Query(description="Area where the property is located")
+#     ] = None,
+#     min_price: Annotated[
+#         Union[float, str, None], Query(description="Minimum price")
+#     ] = None,
+#     max_price: Annotated[
+#         Union[float, str, None], Query(description="Maximum price")
+#     ] = None,
+#     property_type: Annotated[str | None, Query(...)] = None,
+#     bedrooms: Annotated[Union[int, str | None], Query(...)] = None,
+#     bathrooms: Annotated[Union[int, str | None], Query(...)] = None,
+#     furnishing: Annotated[str | None, Query(...)] = None,
+#     condition: Annotated[str | None, Query(...)] = None,
+#     facilities: Annotated[List[str] | None, Query(...)] = None,
+#     sort_by: Annotated[str | None, Query(...)] = "price",
+#     sort_order: Annotated[str | None, Query(...)] = "asc",
+# ):
 
-    filter_query = {}
-    if location_state and location_state != "" and location_state != "null":
-        filter_query["location_state"] = location_state
-    if location_area and location_area != "" and location_area != "null":
-        filter_query["location_area"] = location_area
-    if property_type and property_type != "" and property_type != "null":
-        filter_query["property_type"] = property_type
-    if bedrooms and bedrooms != "" and bedrooms != "null":
-        filter_query["bedrooms"] = bedrooms
-    if bathrooms and bathrooms != "" and bathrooms != "null":
-        filter_query["bathrooms"] = bathrooms
-    if furnishing and furnishing != "" and furnishing != "null":
-        filter_query["furnishing"] = furnishing
-    if condition and condition != "" and condition != "null":
-        filter_query["condition"] = condition
-    if facilities and facilities != "" and facilities != "null":
-        filter_query["facilities"] = {"$all": facilities}
+#     filter_query = {}
+#     if location_state and location_state != "" and location_state != "null":
+#         filter_query["location_state"] = location_state
+#     if location_area and location_area != "" and location_area != "null":
+#         filter_query["location_area"] = location_area
+#     if property_type and property_type != "" and property_type != "null":
+#         filter_query["property_type"] = property_type
+#     if bedrooms and bedrooms != "" and bedrooms != "null":
+#         filter_query["bedrooms"] = bedrooms
+#     if bathrooms and bathrooms != "" and bathrooms != "null":
+#         filter_query["bathrooms"] = bathrooms
+#     if furnishing and furnishing != "" and furnishing != "null":
+#         filter_query["furnishing"] = furnishing
+#     if condition and condition != "" and condition != "null":
+#         filter_query["condition"] = condition
+#     if facilities and facilities != "" and facilities != "null":
+#         filter_query["facilities"] = {"$all": facilities}
 
-    
+#     if (
+#         min_price is not None
+#         and min_price != ""
+#         or max_price is not None
+#         and max_price != ""
+#     ):
+#         price_query = {}
+#         # if price state and if not an empty
+#         if min_price is not None:
+#             price_query["$gte"] = min_price
+#         if max_price is not None:
+#             price_query["$lte"] = max_price
+#         filter_query["price"] = price_query
 
-    if min_price is not None or max_price is not None:
-        price_query = {}
-    # if price state and if not an empty
-        if min_price is not None and min_price < max_price and max_price != "":
-            price_query["$gte"] = min_price
-        if max_price is not None and max_price != "" and max_price > min_price:
-            price_query["$lte"] = max_price
-        filter_query["price"] = price_query
+#     sort_direction = ASCENDING if sort_order.lower() == "asc" else DESCENDING
+#     sort_options = [(sort_by, sort_direction)]
 
-    sort_direction = ASCENDING if sort_order.lower() == "asc" else DESCENDING
-    sort_options = [(sort_by, sort_direction)]
-
-    properties = []
-    try:
-        cursor = property_collection.find(filter_query).sort(sort_options)
-        async for property in cursor:
-            property["_id"] = str(property["_id"])  # Convert ObjectId to string
-            properties.append(property)
-        return properties
-    except Exception as e:
-        print(e)
-        return []
+#     properties = []
+#     try:
+#         # if filter_query is not empty, return all properties
+#         if filter_query and filter_query['facilities']['$all'] != [""]:
+#             cursor = property_collection.find(filter_query).sort(sort_options)
+#             async for property in cursor:
+#                 property["_id"] = str(property["_id"])  # Convert ObjectId to string
+#                 properties.append(property)
+#             return properties
+#         else:
+#             # if filter_query is empty, return all properties
+#             cursor = property_collection.find().sort(sort_options)
+#             async for property in cursor:
+#                 property["_id"] = str(property["_id"])  # Convert ObjectId to string
+#                 properties.append(property)
+#             return properties
+#     except Exception as e:
+#         print(e)
+#         return []
 
 
 # GET A PROPERTY BY ID 66eb45085bc5f324f674a07f

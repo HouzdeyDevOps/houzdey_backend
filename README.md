@@ -1,86 +1,113 @@
+# Houzdey Backend
 
-# MyHome: Your Reliable Rental Listings Platform
+## 🏠 About Houzdey
 
-<!-- ```markdown -->
+Houzdey is an innovative rental property platform that connects tenants with landlords and simplifies the property management process. This repository contains the backend code that powers the Houzdey application.
 
-## Introduction
-Welcome to MyHome, the reliable rental listings app dedicated to providing accurate and verified apartment listings in Enugu. Our platform is committed to ensuring transparency in the rental market by mandating property owners to provide verified photos and comprehensive descriptions of their apartments.
+## 🚀 Features
 
-## Project Phases
+- **RESTful API**: Robust endpoints for property management, user interactions, and more
+- **Real-time Messaging**: Integration with Stream Chat API for instant communication
+- **Payment Processing**: Secure transactions using Paystack
+- **Authentication**: User authentication and authorization with Auth0
+- **Database Management**: Efficient data storage and retrieval with MongoDB
+- **Scalable Architecture**: Designed to handle growth and high concurrent users
 
-### Phase 1: MVP Launch
-- **Core Features**: Accurate listings, user reviews, and basic search functionality.
-- **Objective**: Develop and launch a minimum viable product (MVP).
+## 🛠 Tech Stack
 
-### Phase 2: Feedback and Improvement
-- **User Feedback**: Collect and analyze user feedback.
-- **Iterative Development**: Improve the app based on user insights and market demand.
+- **FastAPI**: High-performance Python web framework for building APIs
+- **MongoDB**: NoSQL database for flexible and scalable data storage
+- **Pydantic**: Data validation and settings management using Python type annotations
+- **Auth0**: For secure user authentication and authorization
+- **Stream Chat API**: For real-time messaging functionality
+- **Paystack API**: For secure payment processing
+- **Google Maps API**: For location-based services
+- **Poetry**: For dependency management and packaging
 
-### Phase 3: Expansion and Enhancement
-- **Listing Expansion**: Broaden the range of listings available.
-- **User Experience**: Enhance the overall user experience.
-- **Advanced Features**: Introduce virtual tours and price negotiation capabilities.
+## 🏗 Getting Started
 
-## Backend
+### Prerequisites
 
-### Technologies
-- **Framework**: FastAPI
-- **Database**: MongoDB with Motor driver
+- Python 3.8+
+- Poetry
+- MongoDB
 
-### Features
-- **Models**: Define and utilize nested models for data representation.
-- **CRUD Operations**: Implement endpoints for creating, reading, updating, and deleting listings.
-- **Authentication and Authorization**: Ensure secure access to the platform.
+### Installation
 
-### Setup and Installation
-```bash
-# Clone the repository
-git clone https://github.com/your-username/myhome.git
+1. Clone the repository:
+   ```
+   git clone https://github.com/houzdey/backend.git
+   cd backend
+   ```
 
-# Navigate to the project directory
-cd myhome
-cd backend(fastapi)
+2. Install dependencies using Poetry:
+   ```
+   poetry install
+   ```
 
-# Install dependencies
-poetry shell
-poetry install
+3. Set up environment variables:
+   Create a `.env` file in the root directory and add the following:
+   ```
+   MONGODB_URI=<your_mongodb_uri>
+   AUTH0_DOMAIN=<your_auth0_domain>
+   AUTH0_API_AUDIENCE=<your_auth0_api_audience>
+   STREAM_API_KEY=<your_stream_chat_api_key>
+   STREAM_API_SECRET=<your_stream_chat_api_secret>
+   PAYSTACK_SECRET_KEY=<your_paystack_secret_key>
+   GOOGLE_MAPS_API_KEY=<your_google_maps_api_key>
+   ```
 
-# Run the server in development mode
-uvicorn main:app --reload
+4. Activate the virtual environment:
+   ```
+   poetry shell
+   ```
+
+5. Start the FastAPI server:
+   ```
+   uvicorn app.main:app --reload
+   ```
+
+6. The API will be available at `http://localhost:8000`. You can access the interactive API documentation at `http://localhost:8000/docs`.
+
+## 🧪 Testing
+
+Run the test suite with:
 
 ```
-
-## Frontend
-
-### Technologies
-- **Library**: React
-- **Build Tool**: Vite
-- **Styling**: Tailwind CSS
-
-### Setup and Installation
-```bash
-# Navigate to the frontend directory
-cd frontend
-
-# Install dependencies
-npm install
-
-# Start the development server
-npm run dev
+poetry run pytest
 ```
 
-## Contributing
-Contributions are what make the open-source community such an amazing place to learn, inspire, and create. Any contributions you make are **greatly appreciated**.
+## 🚢 Deployment
 
-## License
-Distributed under the MIT License. See `LICENSE` for more information.
+1. Choose a cloud platform (e.g., AWS, Render, or DigitalOcean).
+2. Set up a MongoDB instance (e.g., MongoDB Atlas).
+3. Configure environment variables on your chosen platform.
+4. Ensure Poetry is installed on your deployment environment.
+5. Use Poetry to install dependencies:
+   ```
+   poetry install --no-dev
+   ```
+6. Deploy the FastAPI application using platform-specific instructions.
 
-## Contact
-For support or inquiries, please email us at [support@myhome.com](mailto:support@myhome.com).
+## 🌐 API Documentation
 
-## Acknowledgments
-- All contributors who have helped shape MyHome into what it is today.
-- The vibrant community of Enugu for inspiring this project.
-<!-- ``` -->
+Once the server is running, you can access the interactive API documentation:
 
-This README provides a comprehensive overview of the MyHome project, including its introduction, project phases, backend and frontend technologies, setup and installation instructions, contribution guidelines, license, contact information, and acknowledgments. Customize it further to match your project's specifics and repository structure.
+- Swagger UI: `http://localhost:8000/docs`
+- ReDoc: `http://localhost:8000/redoc`
+
+## 🤝 Contributing
+
+We welcome contributions to the Houzdey backend! Please read our [Contributing Guidelines](CONTRIBUTING.md) for more information on how to get started.
+
+## 📄 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## 📞 Support
+
+If you encounter any issues or have questions, please file an issue on our [GitHub issue tracker](https://github.com/houzdey/backend/issues) or contact our support team at support@houzdey.com.
+
+---
+
+Built with ❤️ by the Houzdey Team
