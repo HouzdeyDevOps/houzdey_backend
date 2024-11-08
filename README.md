@@ -42,6 +42,7 @@ Houzdey is an innovative rental property platform that connects tenants with lan
 
 2. Install dependencies using Poetry:
    ```
+   pip install poetry 
    poetry install
    ```
 
@@ -65,6 +66,7 @@ Houzdey is an innovative rental property platform that connects tenants with lan
 5. Start the FastAPI server:
    ```
    uvicorn app.main:app --reload
+   poetry run uvicorn  app.main:app --reload
    ```
 
 6. The API will be available at `http://localhost:8000`. You can access the interactive API documentation at `http://localhost:8000/docs`.
