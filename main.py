@@ -2,6 +2,7 @@ from fastapi import FastAPI, status  # type: ignore
 from fastapi.middleware.cors import CORSMiddleware  # type: ignore
 from fastapi.routing import APIRoute
 from fastapi.responses import RedirectResponse
+# from app.scripts.seed_locations import seed_locations
 
 from app.api.main import api_router
 from app.core.config import settings
@@ -38,3 +39,10 @@ def index():
     return "/api/docs"
 
 app.include_router(api_router, prefix=settings.API_V1_STR)
+
+
+
+# @app.on_event("startup")
+# async def startup_event():
+#     # Seed location data on startup
+#     await seed_locations()

@@ -1,11 +1,10 @@
-import secrets
 from typing import Annotated, Any, Literal
 from pydantic import (
     AnyUrl,
     BeforeValidator,
     computed_field,
 )
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings, SettingsConfigDict # type: ignore
 
 
 def parse_cors(v: Any) -> list[str] | str:
@@ -20,44 +19,72 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=".env", env_ignore_empty=True, extra="ignore"
     )
+    
+    # API Settings
     API_V1_STR: str = "/api/v1"
-    SECRET_KEY: str = secrets.token_urlsafe(32)
-    # 60 minutes * 24 hours * 8 days = 8 days
+    SECRET_KEY: str
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 8
+    
+    # MongoDB Settings
+    MONGO_URL: str
+    
+    # Environment Settings
     DOMAIN: str = "localhost"
     ENVIRONMENT: Literal["local", "staging", "production"] = "local"
+    
+    # Cloudinary Settings
+    CLOUDINARY_CLOUD_NAME: str
+    CLOUDINARY_API_KEY: str
+    CLOUDINARY_API_SECRET: str
+    CLOUDINARY_URL: str
+    
+    # Google OAuth Settings
+    GOOGLE_CLIENT_ID: str
+    GOOGLE_CLIENT_SECRET: str
+    GOOGLE_REDIRECT_URI: str
 
-    @computed_field  # type: ignore[prop-decorator]
+    FACEBOOK_APP_ID: str
+    FACEBOOK_APP_SECRET: str
+    APPLE_CLIENT_ID: str
+    APPLE_TEAM_ID: str
+    APPLE_KEY_ID: str
+    APPLE_PRIVATE_KEY: str
+    
+    @computed_field
     @property
     def server_host(self) -> str:
-        # Use HTTPS for anything other than local development
         if self.ENVIRONMENT == "local":
             return f"http://{self.DOMAIN}"
         return f"https://{self.DOMAIN}"
-
+    
+    # CORS Settings
     BACKEND_CORS_ORIGINS: Annotated[
         list[AnyUrl] | str, BeforeValidator(parse_cors)
     ] = []
-
-    # BACKEND_CORS_ORIGINS: Annotated[list[AnyUrl] | str, BeforeValidator(parse_cors)] = (
-    #     []
-    # )
-
+    
+    # Project Settings
     PROJECT_NAME: str = "houzdey"
     FRONTEND_URL: AnyUrl = "https://houzdey.com/"
-
+    
+    # JWT Settings
     ALGORITHM: str = "HS256"
+
+    
+    # Email Settings
     EMAIL_RESET_PASSWORD_EXPIRE_MINUTES: int = 10
     EMAIL_VERIFY_EMAIL_EXPIRE_MINUTES: int = 60 * 24 * 8
     EMAILS_FROM_NAME: str = "houzdey"
-    EMAILS_FROM_EMAIL: str = "support@houzdey.com"
+    
+    # SMTP Settings
+    EMAIL_HOST: str
+    EMAIL_PORT: int
+    EMAIL_SECURE: bool = True
+    EMAIL_USER: str
+    EMAIL_PASS: str
+    EMAIL_FROM: str
+    EMAIL_TO: str
 
-    SMTP_TLS: bool = True
-    SMTP_SSL: bool = False
-    SMTP_PORT: int = 465
-    SMTP_HOST: str = "smtp.zeptomail.com"
-    SMTP_USER: str = "emailapikey"
-    SMTP_PASSWORD: str = "wSsVR61+8kTyBq54yDL8J79ukF5VAF6nEE8pjFqi7SOpH/vA8sc8kEbLDQSjFKQcEDZvF2RA8LgtzBwGh2UPjNsqzF9SXCiF9mqRe1U4J3x17qnvhDzKWmhelheOLIwOxQVvnGNhFc0g+g=="
+    DESCRIPTION: str = "Houzdey APIs"
 
 
-settings = Settings()  # type: ignore
+settings = Settings()

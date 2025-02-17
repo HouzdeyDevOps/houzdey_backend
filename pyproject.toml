@@ -65,6 +65,10 @@ sqlmodel = "0.0.16"
 starlette = "0.37.2"
 typing-extensions = "4.11.0"
 urllib3 = "2.2.1"
+google-auth = "^2.38.0"
+google-auth-oauthlib = "^1.2.1"
+google-auth-httplib2 = "^0.2.0"
+typer = "^0.15.1"
 
 
 [build-system]

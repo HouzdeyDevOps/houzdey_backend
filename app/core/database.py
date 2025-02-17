@@ -1,17 +1,11 @@
-from motor.motor_asyncio import AsyncIOMotorClient  # type: ignore
+from motor.motor_asyncio import AsyncIOMotorClient
 from typing import Annotated
 import bson
-import os
-from dotenv import load_dotenv  # type: ignore
-from pydantic import (BeforeValidator)
-
-
-load_dotenv()
-
+from pydantic import BeforeValidator
+from app.core.config import settings
 
 def get_db_client():
-    MONGO_URL = os.getenv("MONGO_URL")
-    client = AsyncIOMotorClient(MONGO_URL)
+    client = AsyncIOMotorClient(settings.MONGO_URL)
     return client
 
 # Get a single database
@@ -23,13 +17,9 @@ property_collection = houzdey_database.properties
 review_collection = houzdey_database.reviews
 wishlist_collection = houzdey_database.wishlists
 
-
-
+# Custom types for MongoDB ObjectId handling
 PyObjectId = Annotated[str, BeforeValidator(str)]
 ObjectId = Annotated[
     bson.ObjectId,
     BeforeValidator(lambda x: bson.ObjectId(x) if isinstance(x, str) else x),
-    # PlainSerializer(lambda x: f"{x}", return_type=str),
-    # WithJsonSchema({"type": "string"}, mode="validation"),
-    # WithJsonSchema({"type": "string"}, mode="serialization"),
 ]

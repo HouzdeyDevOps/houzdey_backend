@@ -1,111 +1,130 @@
 from datetime import datetime, timedelta
-from typing import Annotated
-from fastapi.security import OAuth2PasswordBearer  # type: ignore
-from app.crud import get_user
-from app.settings import settings
-from passlib.context import CryptContext  # type: ignore
+from typing import Optional, Any, Union
+from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
-
-#   const Usertoken = localStorage.getItem('token')
-
-# Initialize Passlib's CryptContext with the "bcrypt" scheme and auto-deprecation
+from passlib.context import CryptContext
+from pydantic import ValidationError
+from fastapi import HTTPException, status
+from app.core.config import settings
+from app.models.user import TokenData
+import random
+import string
+from app.models.user import User
+# Password hashing
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
+# OAuth2 configuration
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{settings.API_V1_STR}/auth/login")
 
-# Define the secret key, algorithm, and access token expiration time in minutes
-SECRET_KEY = settings.secret_key
-ALGORITHM = settings.algorithm
-ACCESS_TOKEN_EXPIRE_MINUTES = settings.access_token_expire_minutes
-
-
-# Initialize an OAuth2PasswordBearer object with the location of the token endpoint
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/api/login")
-
-
-# Function to verify a plaintext password against a hashed password
-def verify_password(plain_password, hashed_password):
-    """
-    Verifies if a plaintext password matches a hashed password using the initialized CryptContext.
-    :param plain_password: The plaintext password to verify.
-    :param hashed_password: The hashed password to compare against.
-    :return: True if the plaintext password matches the hashed password, False otherwise.
-    """
+# Password verification
+def verify_password(plain_password: str, hashed_password: str) -> bool:
     return pwd_context.verify(plain_password, hashed_password)
 
-
+# Password hashing
 def get_password_hash(password: str) -> str:
     return pwd_context.hash(password)
 
-
-# Function to authenticate a user using an email and password
-# async def authenticate_user(email: str, password: str):
-#     """
-#     Authenticates a user by retrieving the user from the database using the provided email and verifying the password.
-#     :param email: The user's email address.
-#     :param password: The user's plaintext password.
-#     :return: The user data if the authentication is successful, None otherwise.
-#     """
-#     user = await get_user(email)
-#     if not user or not verify_password(password, user["password"]):
-#         return None
-#     return user
-
-async def authenticate_user(email: str, password: str):
-    user = await get_user(email)
-    print(user)
-    if not user or not verify_password(password, user["password"]):
-        return None
-    user_info = {"sub": user["email"], "id": str(user["id"])}
-    return user_info
-
-
-
-# Function to create a new access token with the provided data and expiration time
-def create_access_token(data: dict, expires_delta: Annotated[timedelta, None] = None):
+# Create a JWT token for different operations (verify email, reset password, access)
+def create_token(subject: str | Any, type_ops: str) -> str:
     """
-    Creates a new access token with the provided data and expiration time.
-    :param data: The data to include in the token.
-    :param expires_delta: The expiration time for the token. If not provided, a default expiration time of 15 minutes is used.
-    :return: The encoded JWT access token.
+    Create a JWT token for different operations (verify email, reset password, access)
     """
-    to_encode = data.copy()
-    if expires_delta:
-        expire = datetime.utcnow() + expires_delta
+    if type_ops == "verify":
+        hours = settings.EMAIL_VERIFY_EMAIL_EXPIRE_MINUTES
+    elif type_ops == "reset":
+        hours = settings.EMAIL_RESET_PASSWORD_EXPIRE_MINUTES
+    elif type_ops == "access":
+        hours = settings.ACCESS_TOKEN_EXPIRE_MINUTES
     else:
-        expire = datetime.utcnow() + timedelta(minutes=15)
+        raise ValueError("Invalid token type")
 
-    to_encode.update({"exp": expire})
-    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
-    return encoded_jwt
+    expire = datetime.utcnow() + timedelta(hours=hours)
+    to_encode = {"exp": expire, "sub": str(subject), "type": type_ops}
+    return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 
-
-# Function to verify JWT token and extract user information
-def decode_token(token: str):
+def verify_token(
+    token: str,
+    expected_type: Optional[str] = None,
+    as_token_data: bool = False,
+    raise_exception: bool = False
+) -> Optional[Union[str, TokenData]]:
     """
-    Decodes a JWT token and extracts the user information.
-    :param token: The JWT token to decode.
-    :return: The decoded token payload if the token is valid, None otherwise.
+    Unified token verification function
+    
+    Args:
+        token: The JWT token to verify
+        expected_type: Expected token type (access, reset, verify)
+        as_token_data: If True, returns TokenData object
+        raise_exception: If True, raises HTTPException on invalid token
+    
+    Returns:
+        - TokenData object if as_token_data is True
+        - Subject string if as_token_data is False
+        - None if token is invalid and raise_exception is False
     """
     try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        # return payload.get("sub")
-        return payload
-    except JWTError:
+        payload = jwt.decode(
+            token, 
+            settings.SECRET_KEY, 
+            algorithms=[settings.ALGORITHM]
+        )
+        
+        # Check token type if specified
+        if expected_type and payload.get("type") != expected_type:
+            if raise_exception:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail=f"Invalid token type. Expected {expected_type}"
+                )
+            return None
+
+        # Return as TokenData or subject
+        if as_token_data:
+            return TokenData(**payload)
+        return str(payload["sub"])
+
+    except (JWTError, ValidationError):
+        if raise_exception:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Could not validate credentials"
+            )
         return None
 
+# Convenience functions using the unified verify_token
+def verify_token_access(token: str) -> TokenData:
+    """Verify access token and return token data"""
+    return verify_token(
+        token, 
+        expected_type="access", 
+        as_token_data=True, 
+        raise_exception=True
+    )
+
+def verify_reset_token(token: str) -> Optional[str]:
+    """Verify reset password token and return subject"""
+    return verify_token(token, expected_type="reset")
+
+def create_reset_password_token(email: str) -> str:
+    """Create a reset password token"""
+    return create_token(email, "reset")
 
 
-def create_reset_password_token(email: str):
-    data = {"sub": email, "exp": datetime.utcnow() + timedelta(hours=10)}
-    token = jwt.encode(data, SECRET_KEY, algorithm=ALGORITHM)
-    return token
 
+def create_verification_code() -> str:
+    """Generate a 6-digit verification code"""
+    return ''.join(random.choices(string.digits, k=6))
 
-def decode_reset_password_token(token: str):
-    try:
-        payload = jwt.decode(token, SECRET_KEY,
-                   algorithms=[ALGORITHM])
-        email: str = payload.get("sub")
-        return email
-    except JWTError:
-        return None 
+def verify_code(user: Union[dict, User], code: str) -> bool:
+    """Verify the provided code against stored code"""
+    # Handle both dict and User model
+    verification_code = getattr(user, 'verification_code', None) if hasattr(user, 'verification_code') else user.get('verification_code')
+    code_expiry = getattr(user, 'code_expiry', None) if hasattr(user, 'code_expiry') else user.get('code_expiry')
+    
+    if not verification_code:
+        return False
+        
+    if code_expiry and datetime.utcnow() > code_expiry:
+        return False
+        
+    return verification_code == code

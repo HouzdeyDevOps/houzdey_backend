@@ -1,37 +1,20 @@
-from typing import Any, Annotated, Optional
-
-from pydantic import BaseModel
-from fastapi import APIRouter, Depends, HTTPException, status
-from app.models.user import User
-from app.settings import settings
+from typing import Annotated
+from fastapi import APIRouter, Depends, HTTPException, status, Form, Query
+from app.models.user import User, UserCreate, UserVerify, UserLogin, UserStatus
 from fastapi.responses import JSONResponse
-from app.crud import (
-    add_to_wishlist,
-    get_all_users,
-    get_user,
-    get_user_by_id,
-    register_user,
-    remove_from_wishlist,
-)
+from app.crud import get_user, create_user, update_user
 from passlib.context import CryptContext  # type: ignore
 from app.api.deps import get_current_user
 from fastapi.security import OAuth2PasswordRequestForm
 from app.core.database import get_db_client, user_collection
 from bson import ObjectId
-
-
-from app.utils import (
-    create_token,
-    verify_token,
-    generate_verification_email,
-    send_email,
-)
+from app.core.security import create_verification_code, verify_password, create_token
+from pydantic import ValidationError
+from app.core.security import verify_token, verify_code
+from app.utils.email import send_verification_code
 from fastapi import File, UploadFile
-import boto3  # type: ignore
-from botocore.client import Config
-from fastapi import Response
-from botocore.exceptions import NoCredentialsError
-
+from app.utils.cloudinary_config import upload_image_to_cloudinary
+from datetime import datetime, timedelta
 
 router = APIRouter()
 
@@ -39,18 +22,9 @@ router = APIRouter()
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
-s3 = boto3.client(
-    "s3",
-    region_name="eu-north-1",
-    aws_access_key_id=settings.S3_ACCESS_KEY,
-    aws_secret_access_key=settings.S3_SECRET_KEY,
-    config=Config(signature_version="s3v4"),
-)
-
-
 # POST /signup endpoint to create a new user
 @router.post("/register", status_code=status.HTTP_201_CREATED)
-async def create_user(user: User):
+async def create_new_user(user: UserCreate):
     """Create a new user."""
     try:
         # Check if email already exists
@@ -60,41 +34,186 @@ async def create_user(user: User):
         if existing_user:
             raise HTTPException(status_code=400, detail="Email already exists")
 
-        # Hash the user's password using bcrypt
-        hashed_password = pwd_context.hash(user.password)
+        # Generate verification code
+        verification_code = create_verification_code()
+        code_expiry = datetime.utcnow() + timedelta(minutes=10)
 
-        # generate token
-        email_verification_token = create_token(
-            subject=user.email, type_ops="verify"
-        )  # noqa
-
-        # Prepare user data for registration
+        # Create user with verification code
         user_data = user.model_dump()
-        user_data["password"] = hashed_password
-        user_data["phone_number"] = user_data["phone_number"].split(":")[1]
-        user_data["wishlist"] = []
-        user_data["is_active"] = False
-        user_data["plan"] = "Basic"
-        user_data["profile_picture"] = ""
-
-        await register_user(user_data)
-
-        # send email verification to user
-        email_data = generate_verification_email(
-            email_to=user.email, email=user.email, token=email_verification_token
+        user_data.update(
+            {
+                "verification_code": verification_code,
+                "code_expiry": code_expiry,
+                "is_verified": False,
+            }
         )
 
-        send_email(
-            email_to=user.email,
-            subject=email_data.subject,
-            html_content=email_data.html_content,
+        # Create user in database
+        new_user = await create_user(user_data)
+
+        # Send verification code
+        send_verification_code(user.email, verification_code)
+
+        return {
+            "message": "Registration successful. Please check your email to verify your account.",
+            "user_id": str(new_user.id),
+        }
+    except ValidationError as e:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e)
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e)
         )
 
-        # return new_user
-        # Return a success message
-        return {"message": "User registered successfully"}
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+
+# login route
+@router.post("/signin", response_model=dict)
+async def login_user(user_credentials: UserLogin):
+    """Authenticate a user and return a token."""
+    try:
+        # Get user from database
+        user = await get_user(user_credentials.email)
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found"
+            )
+
+        # Verify password
+        if not verify_password(user_credentials.password, user.password):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid email or password",
+            )
+
+        # Check if user is verified
+        if user.status == UserStatus.PENDING:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail={
+                    "message": "Please verify your email before signing in",
+                    "email": user.email,
+                    "status": "unverified"
+                }
+            )
+
+        # Create access token
+        access_token = create_token(subject=user.email, type_ops="access")
+
+        return {
+            "access_token": access_token,
+            "token_type": "bearer",
+            "user": {
+                "id": str(user.id),
+                "email": user.email,
+                "first_name": user.first_name,
+                "last_name": user.last_name,
+                "phone_number": user.phone_number,
+                "status": user.status,
+                "profile_picture": user.profile_picture,
+            },
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e)
+        )
+
+
+@router.post("/verify-code")
+async def verify_user_code(verification: UserVerify):
+    """Verify user's email with code"""
+    try:
+        user = await get_user(verification.email)
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+
+        if not verify_code(user, verification.code):
+            raise HTTPException(status_code=400, detail="Invalid or expired code")
+
+        # Update user verification status
+        success = await update_user(
+            user.id,
+            {
+                "is_verified": True,
+                "verification_code": None,
+                "code_expiry": None,
+                "status": "verified",
+            },
+        )
+
+        if not success:
+            raise HTTPException(
+                status_code=500, detail="Failed to update user verification status"
+            )
+
+        return {"message": "Email verified successfully"}
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e)
+        )
+
+
+# /users/resend-code
+@router.post("/resend-code")
+async def resend_code(email: str):
+    """Resend verification code"""
+    try:
+        verification_code = create_verification_code()
+        code_expiry = datetime.utcnow() + timedelta(minutes=10)
+
+        user = await get_user(email)
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+
+        await update_user(
+            user.id,
+            {
+                "verification_code": verification_code,
+                "code_expiry": code_expiry,
+            },
+        )
+        send_verification_code(email, verification_code)
+        return {"message": "Verification code resent successfully"}
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e)
+        )
+
+
+@router.post("/resend-verification")
+async def resend_verification(email: str = Query(..., description="Email to resend verification to")):
+    """Resend verification email"""
+    try:
+        user = await get_user(email)
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+            
+        if user.status == UserStatus.VERIFIED:
+            raise HTTPException(status_code=400, detail="Email is already verified")
+
+        verification_code = create_verification_code()
+        code_expiry = datetime.utcnow() + timedelta(minutes=10)
+
+        await update_user(
+            user.id,
+            {
+                "verification_code": verification_code,
+                "code_expiry": code_expiry,
+            },
+        )
+        
+        send_verification_code(email, verification_code)
+        return {"message": "Verification code resent successfully"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
+            detail=str(e)
+        )
 
 
 @router.post("/verify-email/{token}")
@@ -102,7 +221,7 @@ async def verify_email(
     token: str, db: Annotated[OAuth2PasswordRequestForm, Depends(get_db_client)]
 ):
     # verify token
-    email = verify_token(token=token)
+    email = verify_token(token, expected_type="verify")
 
     if not email:
         raise HTTPException(status_code=400, detail="Invalid token")
@@ -110,20 +229,16 @@ async def verify_email(
     user = await get_user(email=email)
 
     if not user:
-        raise HTTPException(status_code=500, detail="The user with this email does not exist in the system.")
+        raise HTTPException(
+            status_code=500,
+            detail="The user with this email does not exist in the system.",
+        )
 
     # Access the ObjectId value properly
     user_id = ObjectId(user["id"])
     await user_collection.update_one({"_id": user_id}, {"$set": {"is_active": True}})
 
     return JSONResponse(status_code=201, content={"message": "Email verified"})
-
-
-# GET / endpoint to retrieve all users
-@router.get("/")
-async def get_all_users_route():
-    """Get all users."""
-    return await get_all_users()
 
 
 # GET /me endpoint to retrieve the current user response_model=UserResponse
@@ -133,120 +248,115 @@ async def read_users_me(current_user: User = Depends(get_current_user)):
     return current_user
 
 
-# GET /{user_id} endpoint to retrieve a user by ID
-@router.get("/{user_id}", response_model=User)
-async def get_user_by_id_route(user_id: Any):
-    """Get user by ID."""
-    user = await get_user_by_id(user_id)
-    if user is None:
-        raise HTTPException(status_code=404, detail="User not found")
-    return user
-
-
-@router.post("/user/wishlist/", status_code=status.HTTP_201_CREATED)
-async def add_listing_to_wishlist(
-    property_id: str, current_user=Depends(get_current_user)
-):
-    await add_to_wishlist(str(current_user["id"]), property_id)
-
-    return {"message": "Property added to wishlist"}
-
-
-@router.delete("/user/wishlist/", status_code=status.HTTP_200_OK)
-async def remove_listing_from_wishlist(
-    property_id: str, current_user=Depends(get_current_user)
-):
-    await remove_from_wishlist(str(current_user["id"]), property_id)
-
-    return {"message": "Property removed from wishlist"}
-
-
-@router.post("/user/profile-picture")
+@router.post("/upload-profile-picture")
 async def upload_profile_picture(
-    profile_picture: UploadFile = File(...), current_user=Depends(get_current_user)
+    file: UploadFile = File(...), current_user: User = Depends(get_current_user)
 ):
-    # Save the profile picture to S3 and get its key
-    image_key = f"profile images/{str(current_user['id'])}/{profile_picture.filename}"
-    s3.upload_fileobj(profile_picture.file, settings.BUCKET_NAME, image_key)
-
-    # Update the user document in MongoDB with the image key
-    await user_collection.update_one(
-        {"_id": ObjectId(current_user["id"])}, {"$set": {"profile_picture": image_key}}
-    )
-    return {"message": "Profile picture uploaded"}
-
-
-@router.get("/user/profile-picture")
-async def get_profile_picture(current_user=Depends(get_current_user)):
-    # Get the user document from MongoDB
-    user = await user_collection.find_one({"_id": ObjectId(current_user["id"])})
-
-    # Check if the user has a profile picture
-    if "profile_picture" not in user or not user["profile_picture"]:
-        return {"message": "No profile picture found"}
-
-    # Get the image key
-    image_key = user["profile_picture"]
-
-    # Get the image from S3
     try:
-        file_obj = s3.get_object(Bucket=settings.BUCKET_NAME, Key=image_key)
-    except NoCredentialsError:
-        return {"message": "Missing S3 credentials"}
+        # Upload to Cloudinary
+        image_url = await upload_image_to_cloudinary(
+            await file.read(), folder=f"profile_pictures/{current_user['id']}"
+        )
 
-    # Return the image as a response
-    return Response(file_obj["Body"].read(), media_type="image/jpeg")
+        # Update user's profile picture URL in database
+        await user_collection.update_one(
+            {"_id": ObjectId(current_user["id"])},
+            {"$set": {"profile_picture": image_url}},
+        )
+
+        return {"profile_picture_url": image_url}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
-class UserUpdate(BaseModel):
-    name: Optional[str] = None
-    phone_number: Optional[str] = None
-
-
-@router.put("/user")
-async def update_account(
-    user_update: UserUpdate, current_user=Depends(get_current_user)
+@router.post("/personal-info")
+async def update_personal_info(
+    email: str = Form(...),
+    first_name: str = Form(...),
+    last_name: str = Form(...),
+    phone_number: str = Form(...),
+    date_of_birth: str = Form(...),
+    profile_picture: UploadFile = File(None),
 ):
-    # Create the update document
-    update_doc = user_update.dict(exclude_unset=True)
+    """Update user's personal information"""
+    try:
+        user = await get_user(email)
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
 
-    # Update the user document in MongoDB
-    result = await user_collection.update_one(
-        {"_id": ObjectId(current_user["id"])}, {"$set": update_doc}
-    )
+        if user.status != UserStatus.VERIFIED:
+            raise HTTPException(status_code=400, detail="Email not verified")
 
-    # Check if a document was updated
-    if result.modified_count == 0:
+        # Upload profile picture to Cloudinary if provided
+        profile_picture_url = None
+        if profile_picture:
+            try:
+                contents = await profile_picture.read()
+                profile_picture_url = await upload_image_to_cloudinary(
+                    contents, folder=f"profile_pictures/{user.id}"
+                )
+            except Exception as e:
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"Failed to upload profile picture: {str(e)}",
+                )
+
+        # Update user with personal info
+        update_data = {
+            "first_name": first_name,
+            "last_name": last_name,
+            "phone_number": phone_number,
+            "date_of_birth": datetime.strptime(date_of_birth, "%Y-%m-%d"),
+            # "status": "complete",
+            "is_active": True,
+            "profile_picture": profile_picture_url,
+        }
+
+        # Only add profile picture URL if an image was uploaded
+        if profile_picture_url:
+            update_data["profile_picture"] = profile_picture_url
+
+        await update_user(user.id, update_data)
+
+        return {
+            "message": "Personal information updated successfully",
+            "profile_picture_url": profile_picture_url if profile_picture_url else None,
+        }
+    except Exception as e:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e)
         )
 
-    return {"message": "Account updated"}
 
+# @router.patch("/personal-info")
+# async def update_personal_info(
+#     current_user: User = Depends(get_current_user),
+#     first_name: str = Form(...),
+#     last_name: str = Form(...),
+#     phone_number: str = Form(...),
+#     profile_picture: UploadFile = File(None)
+# ):
+#     try:
+#         user_data = {
+#             "first_name": first_name,
+#             "last_name": last_name,
+#             "phone_number": phone_number,
+#         }
 
-@router.delete("/user")
-async def delete_account(current_user=Depends(get_current_user)):
-    # Get the user document from MongoDB
-    user = await user_collection.find_one({"_id": ObjectId(current_user["id"])})
+#         if profile_picture:
+#             # Upload to Cloudinary and get URL
+#             file_location = await upload_image_to_cloudinary(
+#                 await profile_picture.read(),
+#                 folder=f"profile_pictures/{current_user['id']}"
+#             )
+#             user_data["profile_picture"] = file_location
 
-    # Check if the user has a profile picture
-    if "profile_picture" in user:
-        # Get the image key
-        image_key = user["profile_picture"]
+#         # Update user in database
+#         await user_collection.update_one(
+#             {"_id": ObjectId(current_user["id"])},
+#             {"$set": user_data}
+#         )
 
-        # Delete the image from S3
-        try:
-            s3.delete_object(Bucket=settings.BUCKET_NAME, Key=image_key)
-        except NoCredentialsError:
-            return {"message": "Missing S3 credentials"}
-
-    # Delete the user document from MongoDB
-    result = await user_collection.delete_one({"_id": ObjectId(current_user["id"])})
-
-    # Check if a document was deleted
-    if result.deleted_count == 0:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
-        )
-
-    return {"message": "Account and profile picture deleted"}
+#         return {"message": "Personal information updated successfully"}
+#     except Exception as e:
+#         raise HTTPException(status_code=400, detail=str(e))

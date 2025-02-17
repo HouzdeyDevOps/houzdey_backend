@@ -1,12 +1,12 @@
 from bson import ObjectId
 from fastapi import APIRouter, Depends, Query, UploadFile, File, Form, HTTPException  # type: ignore
-from typing import Annotated, List, Union
+from typing import Annotated, List, Union, Optional
 from fastapi.responses import JSONResponse
 from pymongo import ASCENDING, DESCENDING
 from app.core.database import property_collection
 from app.api.deps import get_current_user
 from app.models.properties import Property, PropertyCreate, PropertyUpdate
-from app.settings import settings
+from app.core.config import settings
 import cloudinary
 import cloudinary.uploader
 import json
@@ -94,68 +94,61 @@ async def get_user_properties(current_user=Depends(get_current_user)):
 # # GET ALL PROPERTIES , response_model=List[Property]
 
 @router.get("/properties")
-async def get_all_properties(
-    search: Annotated[
-        str | None, Query(description="Search term for address, neighborhood, city, or ZIP")
-    ] = None,
-    min_price: Annotated[
-        Union[float, str, None], Query(description="Minimum price")
-    ] = None,
-    max_price: Annotated[
-        Union[float, str, None], Query(description="Maximum price")
-    ] = None,
-    property_type: Annotated[str | None, Query(...)] = None,
-    bedrooms: Annotated[Union[int, str, None], Query(...)] = None,
-    bathrooms: Annotated[Union[int, str, None], Query(...)] = None,
-    furnishing: Annotated[str | None, Query(...)] = None,
-    condition: Annotated[str | None, Query(...)] = None,
-    facilities: Annotated[List[str] | None, Query(...)] = None,
-    sort_by: Annotated[str | None, Query(...)] = "price",
-    sort_order: Annotated[str | None, Query(...)] = "asc",
+async def get_properties(
+    search: Optional[str] = None,
+    min_price: Optional[float] = None,
+    max_price: Optional[float] = None,
+    property_type: Optional[str] = None,
+    bedrooms: Optional[int] = None,
+    bathrooms: Optional[int] = None,
+    location_state: Optional[str] = None,
+    location_area: Optional[str] = None,
+    amenities: Optional[List[str]] = Query(None),
+    sort_by: str = "created_at",
+    sort_order: str = "desc"
 ):
     filter_query = {}
-
+    
+    # Match the frontend filters exactly
     if search:
         filter_query["$or"] = [
-            {"property_address": {"$regex": search, "$options": "i"}},
-            {"location_area": {"$regex": search, "$options": "i"}},
-            {"location_state": {"$regex": search, "$options": "i"}},
+            {"title": {"$regex": search, "$options": "i"}},
+            {"address": {"$regex": search, "$options": "i"}},
+            {"state": {"$regex": search, "$options": "i"}},
+            {"lga": {"$regex": search, "$options": "i"}},
         ]
-
+    
     if property_type:
-        filter_query["property_type"] = property_type
+        filter_query["type"] = property_type
     if bedrooms:
-        filter_query["bedrooms"] = int(bedrooms)
+        filter_query["beds"] = bedrooms
     if bathrooms:
-        filter_query["bathrooms"] = int(bathrooms)
-    if furnishing:
-        filter_query["furnishing"] = furnishing
-    if condition:
-        filter_query["condition"] = condition
-    if facilities and isinstance(facilities, list) and facilities != [""]:
-        filter_query["facilities"] = {"$all": facilities}
+        filter_query["baths"] = bathrooms
+    if location_state:
+        filter_query["state"] = location_state
+    if location_area:
+        filter_query["lga"] = location_area
+    if amenities:
+        filter_query["amenities.name"] = {"$all": amenities}
 
+    # Price range filter
     if min_price is not None or max_price is not None:
-        price_query = {}
-        if min_price is not None:
-            price_query["$gte"] = float(min_price)
-        if max_price is not None:
-            price_query["$lte"] = float(max_price)
-        filter_query["price"] = price_query
+        filter_query["price"] = {}
+        if min_price:
+            filter_query["price"]["$gte"] = min_price
+        if max_price:
+            filter_query["price"]["$lte"] = max_price
 
     sort_direction = ASCENDING if sort_order.lower() == "asc" else DESCENDING
-    sort_options = [(sort_by, sort_direction)]
-
-    try:
-        cursor = property_collection.find(filter_query).sort(sort_options)
-        properties = []
-        async for property in cursor:
-            property["_id"] = str(property["_id"])  # Convert ObjectId to string
-            properties.append(property)
-        return properties
-    except Exception as e:
-        print(f"Error in get_all_properties: {e}")
-        return []
+    cursor = property_collection.find(filter_query).sort(sort_by, sort_direction)
+    
+    properties = []
+    async for property in cursor:
+        property["id"] = str(property["_id"])
+        del property["_id"]
+        properties.append(property)
+    
+    return properties
 
 
 

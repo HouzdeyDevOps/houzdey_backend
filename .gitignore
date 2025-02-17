@@ -3,3 +3,5 @@
 *.cpython-*
 
 .vercel
+.venv/
+__pycache__/
