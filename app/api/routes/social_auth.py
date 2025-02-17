@@ -1,11 +1,15 @@
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Body
 from app.core.security import create_token
 from app.crud import get_user, create_user
-from app.utils.google_auth import authenticate_google_token
+from app.utils.google_auth import  get_google_oauth_token, get_google_user_info
 from app.models.user import UserStatus
 # from app.utils.facebook_auth import authenticate_facebook_token
 # from app.utils.apple_auth import authenticate_apple_token
 import secrets
+from app.core.config import settings
+import hashlib
+import base64
+
 
 router = APIRouter()
 
@@ -45,36 +49,82 @@ async def handle_social_auth(user_info: dict, auth_provider: str):
         }
     }
 
-@router.post("/google")
-async def google_auth(request: Request):
-    """Authenticate user with Google token"""
+# @router.post("/google")
+# async def google_auth(request: Request):
+#     """Authenticate user with Google token"""
+#     try:
+#         auth_header = request.headers.get("Authorization")
+#         if not auth_header or not auth_header.startswith("Bearer "):
+#             raise HTTPException(
+#                 status_code=401,
+#                 detail="Invalid authorization header"
+#             )
+        
+#         token = auth_header.split(" ")[1]
+        
+#         # Authenticate with Google
+#         user_info = await authenticate_google_token(token)
+        
+#         # Generate a random password for social auth users
+#         user_info["password"] = secrets.token_urlsafe(32)
+        
+#         # Use common social auth handler
+#         return await handle_social_auth(user_info, "google")
+        
+#     except HTTPException:
+#         raise
+#     except Exception as e:
+#         raise HTTPException(
+#             status_code=400,
+#             detail=str(e)
+#         )
+
+@router.get("/google/auth")
+async def google_auth():
+    """Generate Google OAuth URL with PKCE"""
+    # Generate state token to prevent CSRF
+    state = secrets.token_urlsafe(32)
+    
+    # Generate PKCE verifier and challenge
+    code_verifier = secrets.token_urlsafe(128)
+    code_verifier_bytes = code_verifier.encode('ascii')
+    digest = hashlib.sha256(code_verifier_bytes).digest()
+    code_challenge = base64.urlsafe_b64encode(digest).decode('ascii').rstrip('=')
+    
+    auth_url = (
+        "https://accounts.google.com/o/oauth2/v2/auth?"
+        f"client_id={settings.GOOGLE_CLIENT_ID}&"
+        f"redirect_uri={settings.GOOGLE_REDIRECT_URI}&"
+        "response_type=code&"
+        "scope=email profile&"
+        f"state={state}&"
+        f"code_challenge={code_challenge}&"
+        "code_challenge_method=S256"
+    )
+    
+    return {"auth_url": auth_url, "state": state, "code_verifier": code_verifier}
+
+@router.post("/google/callback")
+async def google_callback(code: str = Body(..., embed=True)):
+    """Handle Google OAuth callback"""
     try:
-        auth_header = request.headers.get("Authorization")
-        if not auth_header or not auth_header.startswith("Bearer "):
-            raise HTTPException(
-                status_code=401,
-                detail="Invalid authorization header"
-            )
+        # Get tokens from Google
+        token_data = await get_google_oauth_token(code)
         
-        token = auth_header.split(" ")[1]
+        # Get user info using access token
+        user_info = await get_google_user_info(token_data["access_token"])
         
-        # Authenticate with Google
-        user_info = await authenticate_google_token(token)
-        
-        # Generate a random password for social auth users
+        # Generate random password for social auth users
         user_info["password"] = secrets.token_urlsafe(32)
         
-        # Use common social auth handler
+        # Handle social auth
         return await handle_social_auth(user_info, "google")
         
-    except HTTPException:
-        raise
     except Exception as e:
         raise HTTPException(
             status_code=400,
             detail=str(e)
         )
-
 # @router.post("/facebook")
 # async def facebook_auth(request: Request):
 #     try:
