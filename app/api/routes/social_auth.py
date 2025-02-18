@@ -4,7 +4,7 @@ from app.crud import get_user, create_user
 from app.utils.google_auth import  get_google_oauth_token, get_google_user_info
 from app.models.user import UserStatus
 # from app.utils.facebook_auth import authenticate_facebook_token
-from app.utils.apple_auth import get_apple_tokens, verify_apple_id_token
+# from app.utils.apple_auth import get_apple_tokens, verify_apple_id_token
 import secrets
 from app.core.config import settings
 import hashlib
@@ -97,27 +97,27 @@ async def google_callback(code: str = Body(..., embed=True)):
             detail=str(e)
         )
 
-@router.post("/apple/callback")
-async def apple_callback(code: str = Body(..., embed=True)):
-    """Handle Apple OAuth callback"""
-    try:
-        # Get tokens from Apple
-        token_data = await get_apple_tokens(code)
+# @router.post("/apple/callback")
+# async def apple_callback(code: str = Body(..., embed=True)):
+#     """Handle Apple OAuth callback"""
+#     try:
+#         # Get tokens from Apple
+#         token_data = await get_apple_tokens(code)
         
-        # Verify and decode the ID token
-        user_info = await verify_apple_id_token(token_data['id_token'])
+#         # Verify and decode the ID token
+#         user_info = await verify_apple_id_token(token_data['id_token'])
         
-        # Generate random password for social auth users
-        user_info["password"] = secrets.token_urlsafe(32)
+#         # Generate random password for social auth users
+#         user_info["password"] = secrets.token_urlsafe(32)
         
-        # Handle social auth
-        return await handle_social_auth(user_info, "apple")
+#         # Handle social auth
+#         return await handle_social_auth(user_info, "apple")
         
-    except Exception as e:
-        raise HTTPException(
-            status_code=400,
-            detail=str(e)
-        )
+#     except Exception as e:
+#         raise HTTPException(
+#             status_code=400,
+#             detail=str(e)
+#         )
 
 # @router.post("/facebook")
 # async def facebook_auth(request: Request):

@@ -7,17 +7,23 @@ from typing import List, Optional
 
 
 
+class PropertyAmenity(BaseModel):
+    name: str
+
 class Property(BaseModel):
-    id: str = Field(..., description="Property ID")
+    id: Optional[str] = None
     title: str
     type: str  # Matches PropertyType enum from frontend
     price: float
-    amenities: List[dict]  # Contains {name: string, icon: string}
+    amenities: List[PropertyAmenity]
     description: str
     images: List[str]
     location: str
     beds: int
     baths: int
+    toilets: int
+    condition: str
+    furnishing: str
     address: str
     state: str
     lga: str  # Local Government Area
@@ -28,22 +34,7 @@ class Property(BaseModel):
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
     view_count: int = 0
-    bookmarked_by_count: int = 0
 
-    property_address: str = Field(..., description="Property Address")
-    estate_name: str = Field(default=None, description="Estate Name")
-    property_type: str = Field(..., description="Property Type", max_length=50)
-    condition: str = Field(..., description="Condition of the property")
-    furnishing: str = Field(..., description="Furnishing state")
-    bedrooms: int = Field(..., description="Number of bedrooms")
-    bathrooms: int = Field(..., description="Number of bathrooms")
-    toilets: int = Field(..., description="Number of toilets")
-    caution_fee: float = Field(None, description="Caution fee")
-    agency_fee: float = Field(None, description="Agency fee")
-    other_fees: float = Field(None, description="Other fees")
-    facilities: List[str] = Field(None, description="List of facilities (e.g., Running Water, Power Supply)")
-    listing_by: str = Field(..., description="Listed by (owner/agent)")
-    
 
 
 class PropertyCreate(BaseModel):

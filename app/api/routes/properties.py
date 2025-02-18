@@ -5,12 +5,15 @@ from fastapi.responses import JSONResponse
 from pymongo import ASCENDING, DESCENDING
 from app.core.database import property_collection
 from app.api.deps import get_current_user
-from app.models.properties import Property, PropertyCreate, PropertyUpdate
+from app.models.property import Property, PropertyCreate, PropertyUpdate
 from app.core.config import settings
 import cloudinary
 import cloudinary.uploader
 import json
 from fastapi import status
+from math import ceil
+from enum import Enum
+from pydantic import BaseModel
 
 from datetime import datetime
 
@@ -93,29 +96,49 @@ async def get_user_properties(current_user=Depends(get_current_user)):
 
 # # GET ALL PROPERTIES , response_model=List[Property]
 
-@router.get("/properties")
+class SortOrder(str, Enum):
+    ASC = "asc"
+    DESC = "desc"
+
+class SortBy(str, Enum):
+    CREATED_AT = "created_at"
+    PRICE = "price"
+
+class PropertyResponse(BaseModel):
+    properties: List[dict]
+    pagination: dict
+
+@router.get("", response_model=PropertyResponse)
 async def get_properties(
     search: Optional[str] = None,
-    min_price: Optional[float] = None,
-    max_price: Optional[float] = None,
+    min_price: Optional[float] = Query(None, ge=0),
+    max_price: Optional[float] = Query(None, ge=0),
     property_type: Optional[str] = None,
-    bedrooms: Optional[int] = None,
-    bathrooms: Optional[int] = None,
+    bedrooms: Optional[int] = Query(None, ge=0),
+    bathrooms: Optional[int] = Query(None, ge=0),
     location_state: Optional[str] = None,
     location_area: Optional[str] = None,
     amenities: Optional[List[str]] = Query(None),
-    sort_by: str = "created_at",
-    sort_order: str = "desc"
+    sort_by: SortBy = SortBy.CREATED_AT,
+    sort_order: SortOrder = SortOrder.DESC,
+    page: int = Query(1, ge=1),
+    limit: int = Query(12, ge=1, le=50)
 ):
+    if min_price is not None and max_price is not None and min_price > max_price:
+        raise HTTPException(status_code=400, detail="min_price cannot be greater than max_price")
+
     filter_query = {}
+
+
     
-    # Match the frontend filters exactly
     if search:
         filter_query["$or"] = [
             {"title": {"$regex": search, "$options": "i"}},
             {"address": {"$regex": search, "$options": "i"}},
+            {"description": {"$regex": search, "$options": "i"}},
             {"state": {"$regex": search, "$options": "i"}},
             {"lga": {"$regex": search, "$options": "i"}},
+
         ]
     
     if property_type:
@@ -131,7 +154,6 @@ async def get_properties(
     if amenities:
         filter_query["amenities.name"] = {"$all": amenities}
 
-    # Price range filter
     if min_price is not None or max_price is not None:
         filter_query["price"] = {}
         if min_price:
@@ -139,8 +161,18 @@ async def get_properties(
         if max_price:
             filter_query["price"]["$lte"] = max_price
 
-    sort_direction = ASCENDING if sort_order.lower() == "asc" else DESCENDING
-    cursor = property_collection.find(filter_query).sort(sort_by, sort_direction)
+    # Calculate pagination
+    skip = (page - 1) * limit
+    
+    # Get total count for pagination
+    total_count = await property_collection.count_documents(filter_query)
+    total_pages = ceil(total_count / limit)
+
+    sort_direction = ASCENDING if sort_order.value == "asc" else DESCENDING
+    cursor = property_collection.find(filter_query)\
+        .sort(sort_by.value, sort_direction)\
+        .skip(skip)\
+        .limit(limit)
     
     properties = []
     async for property in cursor:
@@ -148,7 +180,16 @@ async def get_properties(
         del property["_id"]
         properties.append(property)
     
-    return properties
+    return {
+        "properties": properties,
+        "pagination": {
+            "current_page": page,
+            "total_pages": total_pages,
+            "total_count": total_count,
+            "has_next": page < total_pages,
+            "has_prev": page > 1
+        }
+    }
 
 
 
