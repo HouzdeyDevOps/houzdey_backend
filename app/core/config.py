@@ -41,7 +41,7 @@ class Settings(BaseSettings):
     # Google OAuth Settings
     GOOGLE_CLIENT_ID: str
     GOOGLE_CLIENT_SECRET: str
-    GOOGLE_REDIRECT_URI: str
+    GOOGLE_REDIRECT_URI: str 
 
     FACEBOOK_APP_ID: str
     FACEBOOK_APP_SECRET: str
