@@ -1,83 +1,23 @@
 from bson import ObjectId
 from fastapi import APIRouter, Depends, Query, UploadFile, File, Form, HTTPException  # type: ignore
-from typing import Annotated, List, Union, Optional
+from typing import  List,  Optional
 from fastapi.responses import JSONResponse
 from pymongo import ASCENDING, DESCENDING
 from app.core.database import property_collection
 from app.api.deps import get_current_user
-from app.models.property import Property, PropertyCreate, PropertyUpdate
-from app.core.config import settings
-import cloudinary
-import cloudinary.uploader
+from app.models.property import Property, PropertyUpdate, PropertyResponse, SortOrder, SortBy
 import json
 from fastapi import status
 from math import ceil
-from enum import Enum
-from pydantic import BaseModel
-
 from datetime import datetime
+from app.utils.cloudinary_config import upload_image_to_cloudinary, delete_image_from_cloudinary
+from fastapi import status
+from fastapi.responses import Response
 
 
 router = APIRouter()
 
-# Setup Cloudinary
-cloudinary.config(
-    cloud_name=settings.CLOUDINARY_CLOUD_NAME,
-    api_key=settings.CLOUDINARY_API_KEY,
-    api_secret=settings.CLOUDINARY_API_SECRET,
-)
 
-
-@router.post(
-    "/properties/",
-    status_code=201,
-)
-async def create_property(
-    property_data: str = Form(...),
-    images: List[UploadFile] = File(...),
-    current_user: str = Depends(get_current_user),
-):
-    # Parse property_data as JSON
-    property_data_dict = json.loads(property_data)
-
-    # Validate property data using Pydantic model
-    property_create = PropertyCreate(**property_data_dict)
-
-    # Upload images to Cloudinary
-    image_urls = []
-    for image in images:
-        result = cloudinary.uploader.upload(image.file)
-        image_urls.append(result["secure_url"])
-
-    # Prepare property title
-    title = f"{property_create.furnishing.capitalize() if property_create.furnishing == 'furnished' else ''} {str(property_create.bedrooms) + 'bedroom' if property_create.bedrooms else ''} {property_create.property_type.capitalize()} in {property_create.estate_name.capitalize() + ',' if property_create.estate_name else ''} {property_create.location_area.capitalize()}"
-
-    # Prepare property data
-    property_dict = property_create.dict()
-    property_dict["title"] = title
-    property_dict["images"] = image_urls
-    property_dict["owner_id"] = str(current_user["id"])
-    property_dict["created_at"] = datetime.utcnow()
-    property_dict["updated_at"] = datetime.utcnow()
-    property_dict["bookmarked_by_count"] = 0
-    property_dict["view_count"] = 0
-
-    #  condition
-
-    # Insert into database
-    result = await property_collection.insert_one(property_dict)
-
-    # Add the id to the document
-    await property_collection.update_one(
-        {"_id": result.inserted_id}, {"$set": {"id": str(result.inserted_id)}}
-    )
-
-    response_data = {
-        "status": "success",
-        "message": "Property created successfully",
-    }
-
-    return JSONResponse(status_code=status.HTTP_201_CREATED, content=response_data)
 
 
 # GET A USER'S PROPERTIES
@@ -94,19 +34,6 @@ async def get_user_properties(current_user=Depends(get_current_user)):
     return properties
 
 
-# # GET ALL PROPERTIES , response_model=List[Property]
-
-class SortOrder(str, Enum):
-    ASC = "asc"
-    DESC = "desc"
-
-class SortBy(str, Enum):
-    CREATED_AT = "created_at"
-    PRICE = "price"
-
-class PropertyResponse(BaseModel):
-    properties: List[dict]
-    pagination: dict
 
 @router.get("", response_model=PropertyResponse)
 async def get_properties(
@@ -141,6 +68,7 @@ async def get_properties(
 
         ]
     
+    # Apply filters
     if property_type:
         filter_query["type"] = property_type
     if bedrooms:
@@ -148,12 +76,14 @@ async def get_properties(
     if bathrooms:
         filter_query["baths"] = bathrooms
     if location_state:
-        filter_query["state"] = location_state
+        filter_query["state"] = {"$regex": f"^{location_state}$", "$options": "i"}
     if location_area:
-        filter_query["lga"] = location_area
+        filter_query["lga"] = {"$regex": f"^{location_area}$", "$options": "i"}
     if amenities:
         filter_query["amenities.name"] = {"$all": amenities}
 
+
+    # Price range filter
     if min_price is not None or max_price is not None:
         filter_query["price"] = {}
         if min_price:
@@ -168,6 +98,7 @@ async def get_properties(
     total_count = await property_collection.count_documents(filter_query)
     total_pages = ceil(total_count / limit)
 
+    # Apply sorting
     sort_direction = ASCENDING if sort_order.value == "asc" else DESCENDING
     cursor = property_collection.find(filter_query)\
         .sort(sort_by.value, sort_direction)\
@@ -192,100 +123,6 @@ async def get_properties(
     }
 
 
-
-
-# @router.get("/properties/")
-# async def get_all_properties():
-#     # .to_list(1000)
-#     properties = []
-#     try:
-#         async for property in property_collection.find():
-#             property["_id"] = str(property["_id"])  # Convert ObjectId to string
-#             properties.append(property)
-#         return properties
-#     except Exception as e:
-#         print(e)
-#         return []
-
-
-# @router.get("/properties")
-# async def get_all_properties(
-#     location_state: Annotated[
-#         str | None, Query(description="State where the property is located")
-#     ] = None,
-#     location_area: Annotated[
-#         str | None, Query(description="Area where the property is located")
-#     ] = None,
-#     min_price: Annotated[
-#         Union[float, str, None], Query(description="Minimum price")
-#     ] = None,
-#     max_price: Annotated[
-#         Union[float, str, None], Query(description="Maximum price")
-#     ] = None,
-#     property_type: Annotated[str | None, Query(...)] = None,
-#     bedrooms: Annotated[Union[int, str | None], Query(...)] = None,
-#     bathrooms: Annotated[Union[int, str | None], Query(...)] = None,
-#     furnishing: Annotated[str | None, Query(...)] = None,
-#     condition: Annotated[str | None, Query(...)] = None,
-#     facilities: Annotated[List[str] | None, Query(...)] = None,
-#     sort_by: Annotated[str | None, Query(...)] = "price",
-#     sort_order: Annotated[str | None, Query(...)] = "asc",
-# ):
-
-#     filter_query = {}
-#     if location_state and location_state != "" and location_state != "null":
-#         filter_query["location_state"] = location_state
-#     if location_area and location_area != "" and location_area != "null":
-#         filter_query["location_area"] = location_area
-#     if property_type and property_type != "" and property_type != "null":
-#         filter_query["property_type"] = property_type
-#     if bedrooms and bedrooms != "" and bedrooms != "null":
-#         filter_query["bedrooms"] = bedrooms
-#     if bathrooms and bathrooms != "" and bathrooms != "null":
-#         filter_query["bathrooms"] = bathrooms
-#     if furnishing and furnishing != "" and furnishing != "null":
-#         filter_query["furnishing"] = furnishing
-#     if condition and condition != "" and condition != "null":
-#         filter_query["condition"] = condition
-#     if facilities and facilities != "" and facilities != "null":
-#         filter_query["facilities"] = {"$all": facilities}
-
-#     if (
-#         min_price is not None
-#         and min_price != ""
-#         or max_price is not None
-#         and max_price != ""
-#     ):
-#         price_query = {}
-#         # if price state and if not an empty
-#         if min_price is not None:
-#             price_query["$gte"] = min_price
-#         if max_price is not None:
-#             price_query["$lte"] = max_price
-#         filter_query["price"] = price_query
-
-#     sort_direction = ASCENDING if sort_order.lower() == "asc" else DESCENDING
-#     sort_options = [(sort_by, sort_direction)]
-
-#     properties = []
-#     try:
-#         # if filter_query is not empty, return all properties
-#         if filter_query and filter_query['facilities']['$all'] != [""]:
-#             cursor = property_collection.find(filter_query).sort(sort_options)
-#             async for property in cursor:
-#                 property["_id"] = str(property["_id"])  # Convert ObjectId to string
-#                 properties.append(property)
-#             return properties
-#         else:
-#             # if filter_query is empty, return all properties
-#             cursor = property_collection.find().sort(sort_options)
-#             async for property in cursor:
-#                 property["_id"] = str(property["_id"])  # Convert ObjectId to string
-#                 properties.append(property)
-#             return properties
-#     except Exception as e:
-#         print(e)
-#         return []
 
 
 # GET A PROPERTY BY ID 66eb45085bc5f324f674a07f
@@ -349,3 +186,146 @@ async def update_user_property(
         {"_id": ObjectId(property_id)}
     )
     return Property(**updated_property)
+
+
+@router.post("", status_code=status.HTTP_201_CREATED)
+async def create_property(
+    title: str = Form(...),
+    type: str = Form(...),
+    price: float = Form(...),
+    description: str = Form(...),
+    amenities: str = Form(...),
+    beds: int = Form(default=0),
+    baths: int = Form(default=0),
+    toilets: int = Form(default=0),
+    condition: str = Form(...),
+    furnishing: str = Form(...),
+    address: str = Form(...),
+    state: str = Form(...),
+    lga: str = Form(...),
+    ward: str = Form(...),
+    estate: str = Form(None),
+    size: str = Form(...),
+    images: List[UploadFile] = File(...),
+    current_user=Depends(get_current_user)
+):
+    try:
+        # Validate numeric fields
+        beds = max(0, beds)  # Ensure non-negative
+        baths = max(0, baths)
+        toilets = max(0, toilets)
+
+        
+        # Parse amenities from JSON string
+        try:
+            amenities_list = json.loads(amenities)
+        except json.JSONDecodeError:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid amenities format"
+            )
+        
+        # Upload images to Cloudinary
+        image_urls = []
+        for image in images:
+            contents = await image.read()
+            url = await upload_image_to_cloudinary(contents, "properties")
+            image_urls.append(url)
+            
+        # Create property document
+        property_data = {
+            "title": title,
+            "type": type,
+            "price": price,
+            "description": description,
+            "amenities": amenities_list,
+            "images": image_urls,
+            "location": f"{state}, {lga}, {ward}",
+            "beds": beds,
+            "baths": baths,
+            "toilets": toilets,
+            "condition": condition,
+            "furnishing": furnishing,
+            "address": address,
+            "state": state,
+            "lga": lga,
+            "ward": ward,
+            "estate": estate,
+            "size": size,
+            "owner_id": str(current_user.id),  # Access id as attribute instead of dictionary key
+            "created_at": datetime.utcnow(),
+            "updated_at": datetime.utcnow(),
+            "view_count": 0,
+            "status": "Available"
+        }
+        
+        result = await property_collection.insert_one(property_data)
+        property_data["id"] = str(result.inserted_id)
+        del property_data["_id"]
+        
+        return property_data
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to create property: {str(e)}"
+        )
+
+
+@router.delete("/{property_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_property(
+    property_id: str,
+    # current_user = Depends(get_current_user)
+):
+    try:
+        # Find the property
+        property = await property_collection.find_one({
+            "_id": ObjectId(property_id)
+        })
+
+        if not property:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Property not found"
+            )
+
+        # # Check if the current user owns the property
+        # if str(property["owner_id"]) != str(current_user["id"]):
+        #     raise HTTPException(
+        #         status_code=status.HTTP_403_FORBIDDEN,
+        #         detail="You don't have permission to delete this property"
+        #     )
+
+        # Delete associated images from cloud storage
+        if "images" in property:
+            for image_url in property["images"]:
+                try:
+                    # Extract public_id from Cloudinary URL
+                    public_id = image_url.split("/")[-1].split(".")[0]
+                    await delete_image_from_cloudinary(public_id)
+                except Exception as e:
+                    print(f"Failed to delete image {image_url}: {str(e)}")
+                    raise HTTPException(
+                        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                        detail="Failed to delete image from cloud storage"
+                    )
+
+        # Delete the property from database
+        result = await property_collection.delete_one({
+            "_id": ObjectId(property_id)
+        })
+
+        if result.deleted_count == 0:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Property not found"
+            )
+
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+    except Exception as e:
+        print(f"Error deleting property: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to delete property"
+        )

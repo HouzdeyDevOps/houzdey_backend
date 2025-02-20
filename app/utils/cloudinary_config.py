@@ -18,6 +18,14 @@ async def upload_image_to_cloudinary(file_content: bytes, folder: str) -> str:
     return result['secure_url']
 
 
+async def delete_image_from_cloudinary(public_id: str) -> None:
+    try:
+        cloudinary.uploader.destroy(public_id)
+        return True
+    except Exception as e:
+        raise Exception("Failed to delete image from cloud storage")
+
+
 # async def upload_image_to_cloudinary(file, folder="profile_pictures"):
 #     try:
 #         # Convert file to format Cloudinary can handle

@@ -1,9 +1,20 @@
 from datetime import datetime
 from pydantic import BaseModel, Field
 from typing import List, Optional
+from enum import Enum
 
 
+class SortOrder(str, Enum):
+    ASC = "asc"
+    DESC = "desc"
 
+class SortBy(str, Enum):
+    CREATED_AT = "created_at"
+    PRICE = "price"
+
+class PropertyResponse(BaseModel):
+    properties: List[dict]
+    pagination: dict
 
 
 
@@ -34,6 +45,7 @@ class Property(BaseModel):
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
     view_count: int = 0
+    status: str  # Available, Rented, Sold, Pending, 
 
 
 
