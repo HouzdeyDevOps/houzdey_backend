@@ -27,6 +27,8 @@ class User(BaseModel):
     facebook_id: str | None = None
     apple_id: str | None = None
     wishlist: List[str] = []
+    bio: str | None = None
+    company: str | None = None
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 

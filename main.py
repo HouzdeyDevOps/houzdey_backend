@@ -2,30 +2,39 @@ from fastapi import FastAPI, status  # type: ignore
 from fastapi.middleware.cors import CORSMiddleware  # type: ignore
 from fastapi.routing import APIRoute
 from fastapi.responses import RedirectResponse
-# from app.scripts.seed_locations import seed_locations
 
+# from app.scripts.seed_locations import seed_locations
+from app.core.database import create_indexes
 from app.api.main import api_router
 from app.core.config import settings
+from fastapi_socketio import SocketManager  # type: ignore
+from app.api.socket_handlers import register_socket_handlers
 
 
 def custom_generate_unique_id(route: APIRoute) -> str:
     return f"{route.tags[0]}-{route.name}"
 
 
-app = FastAPI(title=settings.PROJECT_NAME,  docs_url="/api/docs",
-    # description=settings.DESCRIPTION,
-    version="/api/v1",)
+app = FastAPI(
+    title=settings.PROJECT_NAME,
+    docs_url="/api/docs",
+    version="/api/v1",
+)
+
+socket_manager = SocketManager(app=app, mount_location="/socket.io/", cors_allowed_origins="*")
+register_socket_handlers(socket_manager)
 
 
-# CORS middleware configuration
+# Configure CORS with more permissive settings
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    # allow_origins=origins,
+    allow_origins=["*"],  # Add your frontend URL
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["*"],
 )
+
 
 # Include routers
 @app.get(
@@ -34,15 +43,20 @@ app.add_middleware(
     response_class=RedirectResponse,
     status_code=status.HTTP_302_FOUND,
 )
-
 def index():
     return "/api/docs"
 
-app.include_router(api_router, prefix=settings.API_V1_STR)
 
+app.include_router(api_router, prefix=settings.API_V1_STR)
 
 
 # @app.on_event("startup")
 # async def startup_event():
 #     # Seed location data on startup
 #     await seed_locations()
+
+
+# @app.on_event("startup")
+# async def startup_event():
+#     await create_indexes()
+

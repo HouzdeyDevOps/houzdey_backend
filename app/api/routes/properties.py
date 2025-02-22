@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, Query, UploadFile, File, Form, HTTPExcep
 from typing import  List,  Optional
 from fastapi.responses import JSONResponse
 from pymongo import ASCENDING, DESCENDING
-from app.core.database import property_collection
+from app.core.database import property_collection, user_collection, review_collection
 from app.api.deps import get_current_user
 from app.models.property import Property, PropertyUpdate, PropertyResponse, SortOrder, SortBy
 import json
@@ -11,7 +11,6 @@ from fastapi import status
 from math import ceil
 from datetime import datetime
 from app.utils.cloudinary_config import upload_image_to_cloudinary, delete_image_from_cloudinary
-from fastapi import status
 from fastapi.responses import Response
 
 
@@ -126,12 +125,65 @@ async def get_properties(
 
 
 # GET A PROPERTY BY ID 66eb45085bc5f324f674a07f
-@router.get("/properties/{property_id}")
+@router.get("/{property_id}")
 async def get_property_by_id(property_id: str):
-    property_obj = await property_collection.find_one({"_id": ObjectId(property_id)})
-    if not property_obj:
-        raise HTTPException(status_code=404, detail="Property not found")
-    return Property(**property_obj)
+    try:
+        # Validate ObjectId format first
+        try:
+            object_id = ObjectId(property_id)
+        except:
+            raise HTTPException(status_code=404, detail="Property not found")
+
+        # Get the property
+        property_obj = await property_collection.find_one({"_id": object_id})
+        if not property_obj:
+            raise HTTPException(status_code=404, detail="Property not found")
+
+        # Convert ObjectId to string
+        property_obj["id"] = str(property_obj["_id"])
+        del property_obj["_id"]
+
+        # Get the host/owner information
+        owner = await user_collection.find_one({"_id": ObjectId(property_obj["owner_id"])})
+
+        if owner:
+            # Convert owner ObjectId to string
+            owner_id = str(owner["_id"])
+            property_obj["host"] = {
+                "id": owner_id,
+                "name": f"{owner.get('first_name', '')} {owner.get('last_name', '')}".strip(),
+                "image": owner.get("profile_picture", ""),
+                "company": owner.get("company", ""),
+                "role": owner.get("bio", "")  # Using bio as role since that's what the frontend expects
+            }
+
+        # Get the reviews with user information
+        reviews = []
+        async for review in review_collection.find({"property_id": property_id}):
+            review_user = await user_collection.find_one({"_id": ObjectId(review["user_id"])})
+            if review_user:
+                reviews.append({
+                    "id": str(review["_id"]),
+                    "rating": review["rating"],
+                    "comment": review["comment"],
+                    "date": review["created_at"],
+                    "user": {
+                        "name": f"{review_user.get('first_name', '')} {review_user.get('last_name', '')}".strip(),
+                        "image": review_user.get('profile_picture', '')
+                    }
+                })
+        
+        property_obj["reviews"] = reviews
+
+        return property_obj
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail="An error occurred while fetching property details"
+        )
 
 
 # DELETE A USER'S PROPERTY
@@ -159,7 +211,7 @@ async def delete_user_property(
 
 
 # UPDATE A USER'S PROPERTY
-@router.put("/properties/{property_id}", response_model=Property)
+@router.put("/{property_id}", response_model=Property)
 async def update_user_property(
     property_id: str,
     property_update: PropertyUpdate,
