@@ -14,7 +14,7 @@ from app.models.user import User
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 # OAuth2 configuration
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{settings.API_V1_STR}/auth/login")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{settings.API_V1_STR}/users/token")
 
 # Password verification
 def verify_password(plain_password: str, hashed_password: str) -> bool:
@@ -115,16 +115,20 @@ def create_verification_code() -> str:
     """Generate a 6-digit verification code"""
     return ''.join(random.choices(string.digits, k=6))
 
-def verify_code(user: Union[dict, User], code: str) -> bool:
+def verify_code(user: Union[dict, User], code: str, code_type: str = "verification") -> bool:
     """Verify the provided code against stored code"""
     # Handle both dict and User model
-    verification_code = getattr(user, 'verification_code', None) if hasattr(user, 'verification_code') else user.get('verification_code')
-    code_expiry = getattr(user, 'code_expiry', None) if hasattr(user, 'code_expiry') else user.get('code_expiry')
+    if code_type == "reset":
+        stored_code = getattr(user, 'reset_code', None) if hasattr(user, 'reset_code') else user.get('reset_code')
+        code_expiry = getattr(user, 'reset_code_expiry', None) if hasattr(user, 'reset_code_expiry') else user.get('reset_code_expiry')
+    else:
+        stored_code = getattr(user, 'verification_code', None) if hasattr(user, 'verification_code') else user.get('verification_code')
+        code_expiry = getattr(user, 'code_expiry', None) if hasattr(user, 'code_expiry') else user.get('code_expiry')
     
-    if not verification_code:
+    if not stored_code:
         return False
         
     if code_expiry and datetime.utcnow() > code_expiry:
         return False
         
-    return verification_code == code
+    return stored_code == code

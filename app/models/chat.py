@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Optional, List
+from typing import Optional
 from pydantic import BaseModel, Field
 from bson import ObjectId
 
@@ -64,21 +64,41 @@ class MessageResponse(BaseModel):
             datetime: lambda dt: dt.isoformat()
         }
 
+
+
+class PropertyInConversation(BaseModel):
+    id: str
+    title: str
+    image: Optional[str]
+    price: float
+    location: str
+    type: str  # Add property type
+    status: str  # Add property status
+
+class UserInConversation(BaseModel):
+    id: str
+    first_name: str
+    last_name: str
+    profile_picture: Optional[str]
+    email: str  # Add email for contact purposes
+    phone: Optional[str]  # Add phone for contact purposes 
+
+
 class ConversationResponse(BaseModel):
     """Schema for conversation responses with additional details"""
     id: str
     property_id: str
-    property: dict  # Property details
-    other_user: dict  # Other user's details
+    property: PropertyInConversation
+    other_user: UserInConversation
     user_id: str
     owner_id: str
     last_message: Optional[str]
     last_message_time: Optional[datetime]
-    unread_count: int
+    unread_count: int = 0
     created_at: datetime
 
     class Config:
         json_encoders = {
             ObjectId: str,
             datetime: lambda dt: dt.isoformat()
-        } 
+        }

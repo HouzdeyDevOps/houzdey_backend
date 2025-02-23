@@ -32,7 +32,6 @@ async def authenticate_socket(token: str):
 def register_socket_handlers(socket_manager):
     @socket_manager.on("connect")
     async def connect(sid, environ, auth=None):
-        print(f"connect: {sid}, {auth}")
         """Handle new Socket.IO connections with token authentication"""
         try:
             if not auth or "token" not in auth:

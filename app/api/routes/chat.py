@@ -25,7 +25,6 @@ router = APIRouter()
 @router.get("/conversations", response_model=list[ConversationResponse])
 async def get_conversations(current_user: User = Depends(get_current_user)):
     try:
-        # Get all conversations where the user is either the owner or the user
         conversations = await conversation_collection.find({
             "$or": [
                 {"user_id": str(current_user.id)},
@@ -33,13 +32,12 @@ async def get_conversations(current_user: User = Depends(get_current_user)):
             ]
         }).sort("last_message_time", -1).to_list(None)
 
-        # Format conversations with additional details
         formatted_conversations = []
         for conv in conversations:
-            # Get property details
+            # Get property with additional details
             property = await property_collection.find_one({"_id": ObjectId(conv["property_id"])})
             
-            # Get other user's details
+            # Get other user with additional details
             other_user_id = conv["owner_id"] if conv["user_id"] == str(current_user.id) else conv["user_id"]
             other_user = await user_collection.find_one({"_id": ObjectId(other_user_id)})
 
@@ -52,21 +50,25 @@ async def get_conversations(current_user: User = Depends(get_current_user)):
                     "image": property.get("images", [])[0] if property.get("images") else None,
                     "price": property["price"],
                     "location": property["location"],
+                    "type": property.get("type", ""),
+                    "status": property.get("status", "active")
                 },
                 "other_user": {
                     "id": str(other_user["_id"]),
                     "first_name": other_user["first_name"],
                     "last_name": other_user["last_name"],
                     "profile_picture": other_user.get("profile_picture"),
+                    "email": other_user["email"],
+                    "phone": other_user.get("phone")
                 },
                 "user_id": conv["user_id"],
                 "owner_id": conv["owner_id"],
                 "last_message": conv.get("last_message"),
                 "last_message_time": conv.get("last_message_time"),
                 "unread_count": conv.get("unread_count", 0),
-                "created_at": conv["created_at"],
+                "created_at": conv["created_at"]
             })
-
+        print(formatted_conversations)
         return formatted_conversations
     except Exception as e:
         logger.error(f"Error getting conversations: {str(e)}")
