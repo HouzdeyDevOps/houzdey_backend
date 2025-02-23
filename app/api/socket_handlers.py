@@ -1,15 +1,11 @@
 # from main import app, socket_manager
-from app.core.security import verify_token
-from fastapi import WebSocket, WebSocketDisconnect
 from app.core.database import message_collection, conversation_collection
 from bson import ObjectId
 import logging
-from datetime import datetime
-from fastapi import HTTPException
+from datetime import datetime, timedelta
 from jose import JWTError, jwt
 from app.core.config import settings
 from app.crud.user import get_user
-from datetime import timedelta, datetime
 
 logger = logging.getLogger(__name__)
 
@@ -73,7 +69,6 @@ def register_socket_handlers(socket_manager):
     @socket_manager.on("send_message")
     async def send_message(sid, data):
         """Handle new messages sent via Socket.IO"""
-        print(f"send_message: {data}, {sid}")
         try:
             if sid not in active_connections:
                 logger.warning("Unauthenticated message attempt")
