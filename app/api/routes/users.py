@@ -8,7 +8,7 @@ from app.api.deps import get_current_user
 from fastapi.security import OAuth2PasswordRequestForm
 from app.core.database import get_db_client, user_collection
 from bson import ObjectId
-from app.core.security import create_verification_code, verify_password, create_token
+from app.core.security import create_verification_code, verify_password, create_token, get_password_hash
 from pydantic import ValidationError
 from app.core.security import verify_token, verify_code
 from app.utils.email import send_verification_code
@@ -71,6 +71,7 @@ async def create_new_user(user: UserCreate):
 # login route
 @router.post("/signin", response_model=dict)
 async def login_user(user_credentials: UserLogin):
+    print(user_credentials)
     """Authenticate a user and return a token."""
     try:
         # Get user from database
@@ -360,3 +361,156 @@ async def update_personal_info(
 #         return {"message": "Personal information updated successfully"}
 #     except Exception as e:
 #         raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/forgot-password")
+async def forgot_password(email: str = Form(...)):
+    """
+    Send a password reset OTP code to the user's email
+    """
+    try:
+        # Check if user exists
+        user = await get_user(email)
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User with this email does not exist"
+            )
+
+        # Generate verification code
+        reset_code = create_verification_code()
+        code_expiry = datetime.utcnow() + timedelta(minutes=10)
+        
+        # Update user with reset code
+        await user_collection.update_one(
+            {"email": email},
+            {
+                "$set": {
+                    "reset_code": reset_code,
+                    "reset_code_expiry": code_expiry
+                }
+            }
+        )
+        
+        # Generate and send reset password email with OTP
+        try:
+            await send_verification_code(email, reset_code, purpose="reset")
+            return {"message": "Password reset code sent successfully"}
+        except Exception as e:
+            # Log the error but don't expose internal error details
+            print(f"Failed to send reset password code: {str(e)}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to send reset password code. Please try again later."
+            )
+            
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        print(f"Unexpected error in forgot_password: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An unexpected error occurred. Please try again later."
+        )
+
+@router.post("/reset-password")
+async def reset_password(
+    email: str = Form(...),
+    code: str = Form(...),
+    new_password: str = Form(...)
+):
+    """
+    Reset user's password using the OTP code
+    """
+    try:
+        # Get user and verify code
+        user = await get_user(email)
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found"
+            )
+        # Convert user to dict
+        user.model_dump()
+
+
+        # Verify the reset code
+        if not verify_code(user, code, code_type="reset"):
+            print("Code verification failed")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid or expired reset code"
+            )
+
+
+        # Hash new password
+        hashed_password = get_password_hash(new_password)
+        
+        # Update user's password and clear reset code
+        update_result = await user_collection.update_one(
+            {"email": email},
+            {
+                "$set": {"password": hashed_password},
+                "$unset": {"reset_code": "", "reset_code_expiry": ""}
+            }
+        )
+
+        if update_result.modified_count == 0:
+            print("Failed to update password in database")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to update password"
+            )
+
+        print("Password updated successfully")
+        return {"message": "Password reset successful"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error in reset_password: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to reset password"
+        )
+
+# OAuth2 token endpoint for Swagger UI
+@router.post("/token", response_model=dict)
+async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends()):
+    """OAuth2 compatible token login, get an access token for future requests."""
+    try:
+        # Get user from database
+        user = await get_user(form_data.username)  # username field contains email
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Incorrect email or password"
+            )
+
+        # Verify password
+        if not verify_password(form_data.password, user.password):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Incorrect email or password"
+            )
+
+        # Check if user is verified
+        if user.status == UserStatus.PENDING:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Email not verified"
+            )
+
+        # Create access token
+        access_token = create_token(subject=user.email, type_ops="access")
+
+        return {
+            "access_token": access_token,
+            "token_type": "bearer"
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
+        )

@@ -60,3 +60,11 @@ async def update_user(user_id: str, update_data: dict) -> bool:
     except Exception as e:
         print(f"Error updating user: {e}")
         return False
+
+
+async def get_user_by_id(user_id: str):
+    """Get user by ID"""
+    try:
+        return await user_collection.find_one({"_id": ObjectId(user_id)})
+    except:
+        return None

@@ -4,7 +4,7 @@ from app.crud import get_user, create_user
 from app.utils.google_auth import  get_google_oauth_token, get_google_user_info
 from app.models.user import UserStatus
 # from app.utils.facebook_auth import authenticate_facebook_token
-# from app.utils.apple_auth import authenticate_apple_token
+# from app.utils.apple_auth import get_apple_tokens, verify_apple_id_token
 import secrets
 from app.core.config import settings
 import hashlib
@@ -49,35 +49,6 @@ async def handle_social_auth(user_info: dict, auth_provider: str):
         }
     }
 
-# @router.post("/google")
-# async def google_auth(request: Request):
-#     """Authenticate user with Google token"""
-#     try:
-#         auth_header = request.headers.get("Authorization")
-#         if not auth_header or not auth_header.startswith("Bearer "):
-#             raise HTTPException(
-#                 status_code=401,
-#                 detail="Invalid authorization header"
-#             )
-        
-#         token = auth_header.split(" ")[1]
-        
-#         # Authenticate with Google
-#         user_info = await authenticate_google_token(token)
-        
-#         # Generate a random password for social auth users
-#         user_info["password"] = secrets.token_urlsafe(32)
-        
-#         # Use common social auth handler
-#         return await handle_social_auth(user_info, "google")
-        
-#     except HTTPException:
-#         raise
-#     except Exception as e:
-#         raise HTTPException(
-#             status_code=400,
-#             detail=str(e)
-#         )
 
 @router.get("/google/auth")
 async def google_auth():
@@ -125,6 +96,29 @@ async def google_callback(code: str = Body(..., embed=True)):
             status_code=400,
             detail=str(e)
         )
+
+# @router.post("/apple/callback")
+# async def apple_callback(code: str = Body(..., embed=True)):
+#     """Handle Apple OAuth callback"""
+#     try:
+#         # Get tokens from Apple
+#         token_data = await get_apple_tokens(code)
+        
+#         # Verify and decode the ID token
+#         user_info = await verify_apple_id_token(token_data['id_token'])
+        
+#         # Generate random password for social auth users
+#         user_info["password"] = secrets.token_urlsafe(32)
+        
+#         # Handle social auth
+#         return await handle_social_auth(user_info, "apple")
+        
+#     except Exception as e:
+#         raise HTTPException(
+#             status_code=400,
+#             detail=str(e)
+#         )
+
 # @router.post("/facebook")
 # async def facebook_auth(request: Request):
 #     try:

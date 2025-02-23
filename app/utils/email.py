@@ -1,11 +1,12 @@
 from dataclasses import dataclass
 from pathlib import Path
-import smtplib
 import ssl
 from email.message import EmailMessage
 from app.core.config import settings
 from jinja2 import Template
 from typing import Any
+import aiosmtplib # type: ignore
+from datetime import datetime
 
 @dataclass
 class EmailData:
@@ -53,57 +54,101 @@ def generate_reset_password_email(email_to: str, email: str, token: str):
     )
     return EmailData(html_content=html_content, subject=subject)
 
-
-def send_email(email_to: str, subject: str, html_content: str):
+async def send_email(email_to: str, subject: str, html_content: str):
+    """Send email asynchronously using aiosmtplib"""
     smtp_server = settings.EMAIL_HOST
     port = settings.EMAIL_PORT
     username = settings.EMAIL_USER
     password = settings.EMAIL_PASS
     sender_email = settings.EMAIL_FROM
 
-    message = html_content
-    msg = EmailMessage()
-    msg['Subject'] = subject
-    msg['From'] = sender_email
-    msg['To'] = email_to
-    msg.add_alternative(message, subtype="html")
+    message = EmailMessage()
+    message["From"] = sender_email
+    message["To"] = email_to
+    message["Subject"] = subject
+    message.add_alternative(html_content, subtype="html")
 
     try:
-        context = ssl.create_default_context()
-        with smtplib.SMTP_SSL(smtp_server, port, context=context) as server:
-            server.login(username, password)
-            server.send_message(msg)
+        # Configure TLS context
+        tls_context = ssl.create_default_context()
+        
+        # Connect and send
+        async with aiosmtplib.SMTP(hostname=smtp_server, port=port, use_tls=True, tls_context=tls_context) as server:
+            await server.login(username, password)
+            await server.send_message(message)
             print(f"Email sent successfully to {email_to}")
     except Exception as e:
-        print(f"Failed to send email: {str(e)}")
-        raise Exception(f"Failed to send email: {str(e)}")
-    
+        error_msg = f"Failed to send email: {str(e)}"
+        print(error_msg)
+        raise Exception(error_msg)
 
-
-
-def generate_verification_code_email(email_to: str, code: str) -> EmailData:
+def generate_verification_code_email(email_to: str, code: str, purpose: str = "verification") -> EmailData:
     """Generate verification code email"""
     project_name = settings.PROJECT_NAME
-    subject = f"{project_name} - Your verification code"
     
-    html_content = f"""
-    <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
-        <h2>Your Verification Code</h2>
-        <p>Hello,</p>
-        <p>Your verification code is: <strong>{code}</strong></p>
-        <p>This code will expire in 10 minutes.</p>
-        <p>If you didn't request this code, please ignore this email.</p>
-    </div>
-    """
+    if purpose == "reset":
+        subject = f"{project_name} - Password Reset Code"
+        title = "Password Reset Code"
+        message = "You requested to reset your password. Use this code to complete the process:"
+        button_text = "Reset Password"
+    else:
+        subject = f"{project_name} - Your Verification Code"
+        title = "Verify Your Email"
+        message = "Thanks for signing up! Use this code to verify your email address:"
+        button_text = "Verify Email"
+
+    # Template context
+    context = {
+        "project_name": project_name,
+        "title": title,
+        "message": message,
+        "code": code,
+        "button_text": button_text,
+        "year": datetime.utcnow().year,
+        "logo_url": settings.COMPANY_LOGO_URL,  # Add to your settings
+        "social_links": {
+            "Facebook": settings.FACEBOOK_URL,  # Add to your settings
+            "Twitter": settings.TWITTER_URL,    # Add to your settings
+            "Instagram": settings.INSTAGRAM_URL  # Add to your settings
+        }
+    }
+    
+    html_content = render_email_template(
+        template_name="verification_code.html",
+        context=context
+    )
     
     return EmailData(html_content=html_content, subject=subject)
 
-def send_verification_code(email_to: str, code: str):
+async def send_verification_code(email_to: str, code: str, purpose: str = "verification"):
     """Send verification code email"""
-    email_data = generate_verification_code_email(email_to, code)
+    email_data = generate_verification_code_email(email_to, code, purpose)
     
-    send_email(
+    await send_email(
         email_to=email_to,
         subject=email_data.subject,
         html_content=email_data.html_content
     )
+
+def generate_chat_notification_email(email_to: str, sender_name: str, recipient_name: str, message_preview: str, property_title: str, chat_url: str) -> EmailData:
+    """Generate chat notification email"""
+    project_name = settings.PROJECT_NAME
+    subject = f"{project_name} - New message from {sender_name}"
+
+    context = {
+        "project_name": project_name,
+        "sender_name": sender_name,
+        "recipient_name": recipient_name,
+        "message_preview": message_preview,
+        "property_title": property_title,
+        "chat_url": chat_url,
+        "year": datetime.utcnow().year,
+        "logo_url": settings.COMPANY_LOGO_URL
+    }
+    
+    html_content = render_email_template(
+        template_name="chat_notification.html",
+        context=context
+    )
+    
+    return EmailData(html_content=html_content, subject=subject)

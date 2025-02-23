@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{{ title }}</title>
+    <style>
+      @import url("https://fonts.googleapis.com/css2?family=Nunito:wght@400;600&display=swap");
+
+      body {
+        margin: 0;
+        padding: 0;
+        font-family: "Nunito", sans-serif;
+        background-color: #f4f4f4;
+      }
+
+      .container {
+        max-width: 600px;
+        margin: 40px auto;
+        background-color: #ffffff;
+        border-radius: 12px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        overflow: hidden;
+      }
+
+      .header {
+        background-color: #e0e0e0;
+        border: 1px solid #e0e0e0;
+        text-align: center;
+      }
+
+      .logo {
+        max-width: 150px;
+        height: auto;
+        margin-bottom: 20px;
+      }
+
+      .content {
+        padding: 40px 30px;
+        text-align: center;
+      }
+
+      .message {
+        color: #333333;
+        font-size: 16px;
+        line-height: 24px;
+        margin-bottom: 30px;
+      }
+
+      .code {
+        background-color: #f8f9fa;
+        padding: 20px;
+        border-radius: 8px;
+        border: 2px dashed #e0e0e0;
+        margin: 20px 0;
+      }
+
+      .code span {
+        font-size: 32px;
+        font-weight: 600;
+        letter-spacing: 8px;
+        color: #1a73e8;
+      }
+
+      .button {
+        display: inline-block;
+        padding: 12px 24px;
+        background-color: #1a73e8;
+        color: white;
+        text-decoration: none;
+        border-radius: 6px;
+        font-weight: 600;
+        margin-top: 20px;
+        transition: background-color 0.3s ease;
+      }
+
+      .button:hover {
+        background-color: #1557b0;
+        color: white;
+      }
+
+      .footer {
+        padding: 20px 30px;
+        text-align: center;
+        color: #666666;
+        font-size: 14px;
+        border-top: 1px solid #eeeeee;
+      }
+
+      .expires {
+        color: #666666;
+        font-size: 14px;
+        margin-top: 20px;
+      }
+
+      .social-links {
+        margin-top: 20px;
+      }
+
+      .social-links a {
+        display: inline-block;
+        margin: 0 10px;
+        color: #666666;
+        text-decoration: none;
+      }
+
+      .social-links a:hover {
+        color: #1a73e8;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="header">
+        {% if logo_url %}
+        <!-- src="{{ logo_url }}" -->
+        <img
+          src="https://www.houzdey.com/assets/images/houzdey-logo.png"
+          alt="{{ project_name }}"
+          class="logo"
+          style="width: 500px; height: auto"
+        />
+        {% endif %}
+      </div>
+      <div class="content">
+        <p class="message">{{ message }}</p>
+        <div class="code">
+          <span>{{ code }}</span>
+        </div>
+        <p class="expires">This code will expire in 10 minutes.</p>
+        <a href="#" class="button">{{ button_text }}</a>
+      </div>
+      <div class="footer">
+        <p>If you didn't request this code, please ignore this email.</p>
+        <div class="social-links">
+          {% if social_links %} {% for platform, url in social_links.items() %}
+          <a href="{{ url }}">{{ platform }}</a>
+          {% endfor %} {% endif %}
+        </div>
+        <p>© {{ year }} {{ project_name }}. All rights reserved.</p>
+      </div>
+    </div>
+  </body>
+</html>

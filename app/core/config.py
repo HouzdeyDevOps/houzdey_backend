@@ -5,6 +5,7 @@ from pydantic import (
     computed_field,
 )
 from pydantic_settings import BaseSettings, SettingsConfigDict # type: ignore
+import os
 
 
 def parse_cors(v: Any) -> list[str] | str:
@@ -85,6 +86,14 @@ class Settings(BaseSettings):
     EMAIL_TO: str
 
     DESCRIPTION: str = "Houzdey APIs"
+
+    # Company branding
+    COMPANY_LOGO_URL: str = os.getenv("COMPANY_LOGO_URL", "https://your-company-logo-url.com/logo.png")
+    
+    # Social media links
+    FACEBOOK_URL: str = os.getenv("FACEBOOK_URL", "https://facebook.com/your-company")
+    TWITTER_URL: str = os.getenv("TWITTER_URL", "https://twitter.com/your-company")
+    INSTAGRAM_URL: str = os.getenv("INSTAGRAM_URL", "https://instagram.com/your-company")
 
 
 settings = Settings()

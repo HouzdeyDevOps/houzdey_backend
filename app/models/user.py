@@ -1,7 +1,6 @@
 from pydantic import BaseModel, Field, EmailStr, StringConstraints, validator  # type: ignore
 from typing import List, Annotated
 from enum import Enum
-from pydantic_extra_types.phone_numbers import PhoneNumber  # type: ignore
 from datetime import datetime
 
 class UserStatus(str, Enum):
@@ -19,6 +18,8 @@ class User(BaseModel):
     date_of_birth: datetime | None = None
     verification_code: str | None = None
     code_expiry: datetime | None = None
+    reset_code: str | None = None
+    reset_code_expiry: datetime | None = None
     status: UserStatus = UserStatus.PENDING 
     is_active: bool = False
     plan: str = "Basic"
@@ -27,6 +28,8 @@ class User(BaseModel):
     facebook_id: str | None = None
     apple_id: str | None = None
     wishlist: List[str] = []
+    bio: str | None = None
+    company: str | None = None
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
