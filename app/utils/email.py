@@ -129,3 +129,26 @@ async def send_verification_code(email_to: str, code: str, purpose: str = "verif
         subject=email_data.subject,
         html_content=email_data.html_content
     )
+
+def generate_chat_notification_email(email_to: str, sender_name: str, recipient_name: str, message_preview: str, property_title: str, chat_url: str) -> EmailData:
+    """Generate chat notification email"""
+    project_name = settings.PROJECT_NAME
+    subject = f"{project_name} - New message from {sender_name}"
+
+    context = {
+        "project_name": project_name,
+        "sender_name": sender_name,
+        "recipient_name": recipient_name,
+        "message_preview": message_preview,
+        "property_title": property_title,
+        "chat_url": chat_url,
+        "year": datetime.utcnow().year,
+        "logo_url": settings.COMPANY_LOGO_URL
+    }
+    
+    html_content = render_email_template(
+        template_name="chat_notification.html",
+        context=context
+    )
+    
+    return EmailData(html_content=html_content, subject=subject)

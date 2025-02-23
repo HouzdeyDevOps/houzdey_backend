@@ -9,8 +9,10 @@ from app.crud.user import get_user
 
 logger = logging.getLogger(__name__)
 
-active_connections = {}
+active_connections = {}  # {sid: user_email}
 active_conversations = {}
+user_sockets = {}  # {user_id: set(sids)} - Track all sockets for each user
+user_statuses = {}  # {user_id: {"status": "online"|"offline", "last_seen": datetime}}
 
 
 async def authenticate_socket(token: str):
@@ -25,6 +27,31 @@ async def authenticate_socket(token: str):
         return None
 
 
+async def broadcast_user_status(socket_manager, user_id: str, status: str, last_seen: datetime):
+    """Helper function to broadcast user status to all connected clients"""
+    status_data = {
+        "user_id": user_id,
+        "status": status,
+        "last_seen": last_seen.isoformat()
+    }
+    # Emit to all clients without specifying a namespace
+    await socket_manager.emit("user_status", status_data)
+
+
+async def check_user_status(socket_manager, user_id: str):
+    """Check and broadcast a user's current status"""
+    is_online = user_id in user_sockets and len(user_sockets[user_id]) > 0
+    current_time = datetime.utcnow()
+    
+    status = "online" if is_online else "offline"
+    user_statuses[user_id] = {
+        "status": status,
+        "last_seen": current_time
+    }
+    
+    await broadcast_user_status(socket_manager, user_id, status, current_time)
+
+
 def register_socket_handlers(socket_manager):
     @socket_manager.on("connect")
     async def connect(sid, environ, auth=None):
@@ -35,21 +62,34 @@ def register_socket_handlers(socket_manager):
                 await socket_manager.disconnect(sid)
                 return
             token = auth["token"]
-            user_id = await authenticate_socket(token)
+            user_email = await authenticate_socket(token)
 
-
-            if not user_id:
+            if not user_email:
                 logger.warning(f"Authentication failed for connection: {sid}")
                 await socket_manager.disconnect(sid)
                 return
 
+            user = await get_user(user_email)
             # Store the authenticated user's ID
-            active_connections[sid] = user_id
-            logger.info(f"User {user_id} connected with socket ID: {sid}")
+            active_connections[sid] = user_email
+            
+            # Track this socket for the user
+            if user.id not in user_sockets:
+                user_sockets[user.id] = set()
+            user_sockets[user.id].add(sid)
+
+
+            # Update and broadcast status
+            await check_user_status(socket_manager, user.id)
+
+            # Send all other users' statuses to the newly connected user
+            for uid in user_sockets.keys():
+                if uid != user.id:
+                    await check_user_status(socket_manager, uid)
 
             # Emit confirmation of successful connection
             await socket_manager.emit(
-                "connect_confirmed", {"user_id": user_id}, room=sid
+                "connect_confirmed", {"user_id": user.id}, room=sid
             )
 
         except Exception as e:
@@ -57,14 +97,42 @@ def register_socket_handlers(socket_manager):
             await socket_manager.disconnect(sid)
 
     @socket_manager.on("disconnect")
-    async def disconnect(sid):
+    async def disconnect(sid, *args):
         """Handle Socket.IO disconnections"""
         if sid in active_connections:
-            user_id = active_connections[sid]
-            logger.info(f"User {user_id} disconnected from socket ID: {sid}")
-            del active_connections[sid]
+            try:
+                user_email = active_connections[sid]
+                user = await get_user(user_email)
+                
+                # Remove this socket from user's tracked sockets
+                if user.id in user_sockets:
+                    user_sockets[user.id].remove(sid)
+                    
+                    # Clean up if no more connections
+                    if not user_sockets[user.id]:
+                        logger.info(f"User {user.id} has no more active connections, marking as offline")
+                        del user_sockets[user.id]
+                    
+                    # Update and broadcast status
+                    await check_user_status(socket_manager, user.id)
 
-    
+                del active_connections[sid]
+            except Exception as e:
+                logger.error(f"Error in disconnect handler: {str(e)}")
+
+    @socket_manager.on("get_user_status")
+    async def get_user_status(sid, data):
+        """Handle requests for user status"""
+        try:
+            user_id = data.get("user_id")
+            if not user_id:
+                logger.warning("Received status request without user_id")
+                return
+            
+            await check_user_status(socket_manager, user_id)
+            
+        except Exception as e:
+            logger.error(f"Error getting user status: {str(e)}")
 
     @socket_manager.on("send_message")
     async def send_message(sid, data):
@@ -166,12 +234,48 @@ def register_socket_handlers(socket_manager):
 
     @socket_manager.on("join")
     async def join_room(sid, data):
-        conversation_id = data.get("conversation_id")
-        if not conversation_id:
-            return
-        await socket_manager.enter_room(sid, conversation_id)
-        await socket_manager.emit("room_joined", {"room": conversation_id}, room=sid)
+        try:
+            conversation_id = data.get("conversation_id")
+            if not conversation_id:
+                return
 
+            # Get the user who is joining
+            user_email = active_connections.get(sid)
+            if not user_email:
+                return
+                
+            user = await get_user(user_email)
+            
+            # Get the conversation to find the other user
+            conversation = await conversation_collection.find_one({"_id": ObjectId(conversation_id)})
+            if not conversation:
+                return
+                
+            # Get the other user's ID
+            other_user_id = conversation["owner_id"] if user.id == conversation["user_id"] else conversation["user_id"]
+            
+            # Send both users' statuses
+            if user.id in user_statuses:
+                await broadcast_user_status(
+                    socket_manager, 
+                    user.id, 
+                    user_statuses[user.id]["status"],
+                    user_statuses[user.id]["last_seen"]
+                )
+                
+            if other_user_id in user_statuses:
+                await broadcast_user_status(
+                    socket_manager,
+                    other_user_id,
+                    user_statuses[other_user_id]["status"],
+                    user_statuses[other_user_id]["last_seen"]
+                )
+
+            await socket_manager.enter_room(sid, conversation_id)
+            await socket_manager.emit("room_joined", {"room": conversation_id}, room=sid)
+            
+        except Exception as e:
+            logger.error(f"Error joining room: {str(e)}")
 
     @socket_manager.on("typing_status")
     async def typing_status(sid, data):
