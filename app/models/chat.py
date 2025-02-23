@@ -1,7 +1,17 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 from pydantic import BaseModel, Field
 from bson import ObjectId
+
+def utc_now():
+    """Get current UTC time with timezone info"""
+    return datetime.now(timezone.utc)
+
+def format_datetime(dt: datetime) -> str:
+    """Format datetime to ISO format with UTC timezone"""
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.isoformat()
 
 class MessageCreate(BaseModel):
     """Schema for creating a new message"""
@@ -13,13 +23,13 @@ class Message(BaseModel):
     conversation_id: str
     sender_id: str
     content: str
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=utc_now)
     read: bool = False
     
     class Config:
         json_encoders = {
             ObjectId: str,
-            datetime: lambda dt: dt.isoformat()
+            datetime: format_datetime
         }
 
 class Conversation(BaseModel):
@@ -31,12 +41,12 @@ class Conversation(BaseModel):
     last_message: Optional[str] = None
     last_message_time: Optional[datetime] = None
     unread_count: int = 0
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=utc_now)
     
     class Config:
         json_encoders = {
             ObjectId: str,
-            datetime: lambda dt: dt.isoformat()
+            datetime: format_datetime
         }
 
 class TypingStatus(BaseModel):
@@ -61,37 +71,36 @@ class MessageResponse(BaseModel):
     class Config:
         json_encoders = {
             ObjectId: str,
-            datetime: lambda dt: dt.isoformat()
+            datetime: format_datetime
         }
 
-
-
 class PropertyInConversation(BaseModel):
+    """Schema for property details in conversation"""
     id: str
     title: str
     image: Optional[str]
     price: float
     location: str
-    type: str  # Add property type
-    status: str  # Add property status
+    type: str
+    status: str
 
 class UserInConversation(BaseModel):
+    """Schema for user details in conversation"""
     id: str
     first_name: str
     last_name: str
     profile_picture: Optional[str]
-    email: str  # Add email for contact purposes
-    phone: Optional[str]  # Add phone for contact purposes 
-
+    email: str
+    phone: Optional[str]
 
 class ConversationResponse(BaseModel):
     """Schema for conversation responses with additional details"""
     id: str
     property_id: str
     property: PropertyInConversation
-    other_user: UserInConversation
     user_id: str
     owner_id: str
+    other_user: UserInConversation
     last_message: Optional[str]
     last_message_time: Optional[datetime]
     unread_count: int = 0
@@ -100,5 +109,5 @@ class ConversationResponse(BaseModel):
     class Config:
         json_encoders = {
             ObjectId: str,
-            datetime: lambda dt: dt.isoformat()
+            datetime: format_datetime
         }

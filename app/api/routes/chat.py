@@ -10,7 +10,7 @@ from app.core.database import (
     user_collection,
 )
 from app.api.deps import get_current_user
-from app.models.chat import Conversation, ConversationResponse
+from app.models.chat import ConversationResponse
 from app.models.user import User
 from datetime import datetime
 from bson import ObjectId
@@ -25,6 +25,7 @@ router = APIRouter()
 @router.get("/conversations", response_model=list[ConversationResponse])
 async def get_conversations(current_user: User = Depends(get_current_user)):
     try:
+        # Find all conversations where the current user is either the user or owner
         conversations = await conversation_collection.find({
             "$or": [
                 {"user_id": str(current_user.id)},
@@ -34,13 +35,18 @@ async def get_conversations(current_user: User = Depends(get_current_user)):
 
         formatted_conversations = []
         for conv in conversations:
-            # Get property with additional details
+            # Get property details
             property = await property_collection.find_one({"_id": ObjectId(conv["property_id"])})
-            
-            # Get other user with additional details
+            if not property:
+                continue  # Skip if property not found
+
+            # Get other user details (the one who is not the current user)
             other_user_id = conv["owner_id"] if conv["user_id"] == str(current_user.id) else conv["user_id"]
             other_user = await user_collection.find_one({"_id": ObjectId(other_user_id)})
+            if not other_user:
+                continue  # Skip if other user not found
 
+            # Format the conversation with all required details
             formatted_conversations.append({
                 "id": str(conv["_id"]),
                 "property_id": conv["property_id"],
@@ -53,46 +59,79 @@ async def get_conversations(current_user: User = Depends(get_current_user)):
                     "type": property.get("type", ""),
                     "status": property.get("status", "active")
                 },
+                "user_id": conv["user_id"],
+                "owner_id": conv["owner_id"],
                 "other_user": {
                     "id": str(other_user["_id"]),
                     "first_name": other_user["first_name"],
                     "last_name": other_user["last_name"],
                     "profile_picture": other_user.get("profile_picture"),
                     "email": other_user["email"],
-                    "phone": other_user.get("phone")
+                    "phone": other_user.get("phone_number")  # Note: using phone_number field from user model
                 },
-                "user_id": conv["user_id"],
-                "owner_id": conv["owner_id"],
                 "last_message": conv.get("last_message"),
                 "last_message_time": conv.get("last_message_time"),
                 "unread_count": conv.get("unread_count", 0),
-                "created_at": conv["created_at"]
+                "created_at": conv.get("created_at", datetime.utcnow())
             })
-        print(formatted_conversations)
+
         return formatted_conversations
     except Exception as e:
         logger.error(f"Error getting conversations: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/conversations/{conversation_id}", response_model=Conversation)
-async def get_conversation(
-    conversation_id: str, current_user=Depends(get_current_user)
-):
+@router.get("/conversations/{conversation_id}", response_model=ConversationResponse)
+async def get_conversation(conversation_id: str, current_user: User = Depends(get_current_user)):
     try:
-        conversation = await conversation_collection.find_one(
-            {"_id": ObjectId(conversation_id)}
-        )
+        # Get conversation
+        conversation = await conversation_collection.find_one({"_id": ObjectId(conversation_id)})
         if not conversation:
             raise HTTPException(status_code=404, detail="Conversation not found")
 
         # Verify user has access to this conversation
-        if str(conversation["user_id"]) != str(current_user.id) and str(
-            conversation["owner_id"]
-        ) != str(current_user.id):
+        if str(conversation["user_id"]) != str(current_user.id) and str(conversation["owner_id"]) != str(current_user.id):
             raise HTTPException(status_code=403, detail="Access denied")
 
-        return conversation
+        # Get property details
+        property = await property_collection.find_one({"_id": ObjectId(conversation["property_id"])})
+        if not property:
+            raise HTTPException(status_code=404, detail="Property not found")
+
+        # Get other user details
+        other_user_id = conversation["owner_id"] if conversation["user_id"] == str(current_user.id) else conversation["user_id"]
+        other_user = await user_collection.find_one({"_id": ObjectId(other_user_id)})
+        if not other_user:
+            raise HTTPException(status_code=404, detail="Other user not found")
+
+        # Format and return conversation with all details
+        return {
+            "id": str(conversation["_id"]),
+            "property_id": conversation["property_id"],
+            "property": {
+                "id": str(property["_id"]),
+                "title": property["title"],
+                "image": property.get("images", [])[0] if property.get("images") else None,
+                "price": property["price"],
+                "location": property["location"],
+                "type": property.get("type", ""),
+                "status": property.get("status", "active")
+            },
+            "user_id": conversation["user_id"],
+            "owner_id": conversation["owner_id"],
+            "other_user": {
+                "id": str(other_user["_id"]),
+                "first_name": other_user["first_name"],
+                "last_name": other_user["last_name"],
+                "profile_picture": other_user.get("profile_picture"),
+                "email": other_user["email"],
+                "phone": other_user.get("phone_number")
+            },
+            "last_message": conversation.get("last_message"),
+            "last_message_time": conversation.get("last_message_time"),
+            "unread_count": conversation.get("unread_count", 0),
+            "created_at": conversation.get("created_at", datetime.utcnow())
+        }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
