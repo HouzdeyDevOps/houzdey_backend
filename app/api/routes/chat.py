@@ -2,6 +2,7 @@ from fastapi import (
     APIRouter,
     Depends,
     HTTPException,
+    status,
 )
 from app.core.database import (
     conversation_collection,
@@ -17,6 +18,10 @@ from bson import ObjectId
 from bson.errors import InvalidId
 import logging
 from fastapi.responses import JSONResponse
+import json
+import cloudinary
+import cloudinary.uploader
+from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -289,3 +294,61 @@ async def get_other_user_id(conversation_id: str, current_user_id: str) -> str:
         if conversation["owner_id"] == current_user_id
         else conversation["owner_id"]
     )
+
+
+@router.delete("/messages/{message_id}")
+async def delete_message(
+    message_id: str,
+    current_user: User = Depends(get_current_user)
+):
+    """Delete a message and its associated file if any"""
+    try:
+        # Find the message
+        message = await message_collection.find_one({"_id": ObjectId(message_id)})
+        
+        if not message:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Message not found"
+            )
+            
+        # Check if user is the sender
+        if str(message["sender_id"]) != str(current_user.id):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You can only delete your own messages"
+            )
+
+        # If message has a file, delete it from Cloudinary
+        try:
+            content = message.get("content")
+            if content:
+                try:
+                    content_data = json.loads(content)
+                    if content_data.get("file_url"):
+                        # Extract public_id from Cloudinary URL
+                        public_id = content_data["file_url"].split("/")[-1].split(".")[0]
+                        # Delete from Cloudinary
+                        cloudinary.uploader.destroy(public_id)
+                except (json.JSONDecodeError, KeyError):
+                    pass  # Not a JSON message or doesn't have file_url
+        except Exception as e:
+            print(f"Error deleting file from Cloudinary: {str(e)}")
+            # Continue with message deletion even if file deletion fails
+
+        # Delete the message
+        result = await message_collection.delete_one({"_id": ObjectId(message_id)})
+        
+        if result.deleted_count == 0:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Message not found"
+            )
+            
+        return {"status": "success", "message": "Message deleted successfully"}
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
+        )

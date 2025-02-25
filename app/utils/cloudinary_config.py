@@ -26,14 +26,3 @@ async def delete_image_from_cloudinary(public_id: str) -> None:
         raise Exception("Failed to delete image from cloud storage")
 
 
-# async def upload_image_to_cloudinary(file, folder="profile_pictures"):
-#     try:
-#         # Convert file to format Cloudinary can handle
-#         result = uploader.upload(
-#             file,
-#             folder=folder,
-#             resource_type="auto"
-#         )
-#         return result['secure_url']
-#     except Exception as e:
-#         raise Exception(f"Failed to upload image: {str(e)}") 

@@ -6,6 +6,7 @@ from pydantic import (
 )
 from pydantic_settings import BaseSettings, SettingsConfigDict # type: ignore
 import os
+from pathlib import Path
 
 
 def parse_cors(v: Any) -> list[str] | str:
@@ -94,6 +95,23 @@ class Settings(BaseSettings):
     FACEBOOK_URL: str = os.getenv("FACEBOOK_URL", "https://facebook.com/your-company")
     TWITTER_URL: str = os.getenv("TWITTER_URL", "https://twitter.com/your-company")
     INSTAGRAM_URL: str = os.getenv("INSTAGRAM_URL", "https://instagram.com/your-company")
+
+    # Media Storage Settings
+    MEDIA_ROOT: Path = Path("media")
+    UPLOAD_DIR: Path = MEDIA_ROOT / "uploads"
+    MAX_UPLOAD_SIZE: int = 10 * 1024 * 1024  # 10MB
+    ALLOWED_IMAGE_TYPES: set = {"image/jpeg", "image/png", "image/gif", "image/webp"}
+    ALLOWED_AUDIO_TYPES: set = {"audio/webm", "audio/mp3", "audio/wav", "audio/ogg"}
+
+    def initialize(self):
+        """Initialize application settings"""
+        # Create media directories if they don't exist
+        self.MEDIA_ROOT.mkdir(exist_ok=True)
+        self.UPLOAD_DIR.mkdir(exist_ok=True)
+        
+        # Create subdirectories for different file types
+        (self.UPLOAD_DIR / "images").mkdir(exist_ok=True)
+        (self.UPLOAD_DIR / "voice").mkdir(exist_ok=True)
 
 
 settings = Settings()

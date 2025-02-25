@@ -2,6 +2,7 @@ from datetime import datetime, timezone
 from typing import Optional
 from pydantic import BaseModel, Field
 from bson import ObjectId
+from enum import Enum
 
 def utc_now():
     """Get current UTC time with timezone info"""
@@ -13,6 +14,11 @@ def format_datetime(dt: datetime) -> str:
         dt = dt.replace(tzinfo=timezone.utc)
     return dt.isoformat()
 
+class MessageType(str, Enum):
+    TEXT = "text"
+    IMAGE = "image"
+    VOICE = "voice"
+
 class MessageCreate(BaseModel):
     """Schema for creating a new message"""
     content: str = Field(..., min_length=1, max_length=5000)
@@ -23,7 +29,11 @@ class Message(BaseModel):
     conversation_id: str
     sender_id: str
     content: str
+    type: MessageType = MessageType.TEXT
+    file_url: Optional[str] = None
+    duration: Optional[int] = None
     created_at: datetime = Field(default_factory=utc_now)
+    updated_at: datetime
     read: bool = False
     
     class Config:
