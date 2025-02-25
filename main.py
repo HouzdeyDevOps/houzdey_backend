@@ -7,7 +7,7 @@ from fastapi.responses import RedirectResponse
 from app.core.database import create_indexes
 from app.api.main import api_router
 from app.core.config import settings
-from fastapi_socketio import SocketManager  # type: ignore
+from app.api.socket_manager import init_socket_manager
 from app.api.socket_handlers import register_socket_handlers
 
 
@@ -21,7 +21,7 @@ app = FastAPI(
     version="/api/v1",
 )
 
-socket_manager = SocketManager(app=app, mount_location="/socket.io/", cors_allowed_origins="*")
+socket_manager = init_socket_manager(app)
 register_socket_handlers(socket_manager)
 
 
@@ -56,7 +56,7 @@ app.include_router(api_router, prefix=settings.API_V1_STR)
 #     await seed_locations()
 
 
-# @app.on_event("startup")
-# async def startup_event():
-#     await create_indexes()
+@app.on_event("startup")
+async def startup_event():
+    await create_indexes()
 

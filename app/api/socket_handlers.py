@@ -1,4 +1,3 @@
-# from main import app, socket_manager
 from app.core.database import message_collection, conversation_collection
 from bson import ObjectId
 import logging

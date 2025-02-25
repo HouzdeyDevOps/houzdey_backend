@@ -19,9 +19,9 @@ from bson.errors import InvalidId
 import logging
 from fastapi.responses import JSONResponse
 import json
-import cloudinary
-import cloudinary.uploader
-from app.core.config import settings
+import cloudinary # type: ignore
+import cloudinary.uploader # type: ignore
+from app.api.socket_manager import get_socket_manager
 
 logger = logging.getLogger(__name__)
 
@@ -243,6 +243,7 @@ async def create_conversation(property_id: str, current_user=Depends(get_current
 async def mark_messages_as_read(
     conversation_id: str, current_user=Depends(get_current_user)
 ):
+    # Mark messages as read
     await message_collection.update_many(
         {"conversation_id": conversation_id, "receiver_id": str(current_user.id)},
         {"$set": {"read": True}},
@@ -253,6 +254,10 @@ async def mark_messages_as_read(
         {"_id": ObjectId(conversation_id)},
         {"$set": {"unread_count": 0}}
     )
+    
+    # Emit socket event to notify other users
+    socket_manager = get_socket_manager()
+    await socket_manager.emit("messages_read", {"conversation_id": conversation_id}, room=conversation_id)
     
     return {"status": "success"}
 
