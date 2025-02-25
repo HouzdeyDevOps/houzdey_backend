@@ -3,18 +3,23 @@ from app.crud import add_to_wishlist, get_user_wishlist, remove_from_wishlist
 from app.api.deps import get_current_user
 from pydantic import BaseModel
 
+
 class WishlistAdd(BaseModel):
     property_id: str
+
 
 router = APIRouter()
 
 
 @router.post("")
-async def add_wishlist(wishlist_data: WishlistAdd, current_user=Depends(get_current_user)):
-    success = await add_to_wishlist(current_user.id, wishlist_data.property_id)
-    if not success:
-        raise HTTPException(status_code=400, detail="Failed to add to wishlist")
-    return {"message": "Added to wishlist"}
+async def add_wishlist(
+    wishlist_data: WishlistAdd, current_user=Depends(get_current_user)
+):
+    try:
+        await add_to_wishlist(current_user.id, wishlist_data.property_id)
+    except Exception as e:
+        print(e)
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.delete("/{property_id}")

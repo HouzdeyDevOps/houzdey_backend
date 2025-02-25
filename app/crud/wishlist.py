@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import List
 from bson import ObjectId
 from app.core.database import user_collection
 
