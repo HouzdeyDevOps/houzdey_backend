@@ -16,7 +16,7 @@ houzdey_database = get_db_client().Houzdey
 user_collection = houzdey_database.users
 property_collection = houzdey_database.properties
 review_collection = houzdey_database.reviews
-wishlist_collection = houzdey_database.wishlists
+# wishlist_collection = houzdey_database.wishlists
 message_collection = houzdey_database.messages
 conversation_collection = houzdey_database.conversations
 

@@ -154,7 +154,8 @@ async def get_property_by_id(property_id: str):
                 "name": f"{owner.get('first_name', '')} {owner.get('last_name', '')}".strip(),
                 "image": owner.get("profile_picture", ""),
                 "company": owner.get("company", ""),
-                "role": owner.get("bio", "")  # Using bio as role since that's what the frontend expects
+                "role": owner.get("bio", ""),  # Using bio as role since that's what the frontend expects
+                "phone_number": owner.get("phone_number", "")
             }
 
         # Get the reviews with user information
