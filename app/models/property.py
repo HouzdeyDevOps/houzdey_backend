@@ -45,7 +45,7 @@ class Property(BaseModel):
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
     view_count: int = 0
-    status: str  # Available, Rented, Sold, Pending, 
+    status: str  # Available, Unavailable, pending, draft
 
 
 

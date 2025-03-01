@@ -22,15 +22,32 @@ router = APIRouter()
 # GET A USER'S PROPERTIES
 @router.get("/users/me/properties/")
 async def get_user_properties(current_user=Depends(get_current_user)):
-    user_id = str(current_user["id"])
+    try:
+        user_id = str(current_user.id)
+        
+        properties = []
+        async for property in property_collection.find({"owner_id": user_id}):
+            # Convert ObjectId to string
+            property["id"] = str(property["_id"])
+            del property["_id"]
+            
+            # Ensure all required fields are present
+            property.setdefault("status", "available")  # Default status if not set
+            property.setdefault("created_at", datetime.utcnow().isoformat())
+            
+            properties.append(property)
 
-    properties = []
-    async for property in property_collection.find({"owner_id": user_id}):
-        properties.append(property)
-
-    if not properties:
-        raise HTTPException(status_code=404, detail="No properties found for this user")
-    return properties
+        if not properties:
+            return []  # Return empty list instead of 404 error
+            
+        return properties
+        
+    except Exception as e:
+        print(f"Error fetching user properties: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to fetch user properties"
+        )
 
 
 
@@ -53,10 +70,9 @@ async def get_properties(
     if min_price is not None and max_price is not None and min_price > max_price:
         raise HTTPException(status_code=400, detail="min_price cannot be greater than max_price")
 
-    filter_query = {}
+    # Initialize filter query with status filter
+    filter_query = {"status": "available"}
 
-
-    
     if search:
         filter_query["$or"] = [
             {"title": {"$regex": search, "$options": "i"}},
@@ -64,7 +80,6 @@ async def get_properties(
             {"description": {"$regex": search, "$options": "i"}},
             {"state": {"$regex": search, "$options": "i"}},
             {"lga": {"$regex": search, "$options": "i"}},
-
         ]
     
     # Apply filters
@@ -80,7 +95,6 @@ async def get_properties(
         filter_query["lga"] = {"$regex": f"^{location_area}$", "$options": "i"}
     if amenities:
         filter_query["amenities.name"] = {"$all": amenities}
-
 
     # Price range filter
     if min_price is not None or max_price is not None:
@@ -309,7 +323,7 @@ async def create_property(
             "created_at": datetime.utcnow(),
             "updated_at": datetime.utcnow(),
             "view_count": 0,
-            "status": "Available"
+            "status": "available"
         }
         
         result = await property_collection.insert_one(property_data)
@@ -381,4 +395,57 @@ async def delete_property(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to delete property"
+        )
+
+@router.patch("/{property_id}/status", status_code=status.HTTP_200_OK)
+async def update_property_status(
+    property_id: str,
+    status: str = Form(...),
+    current_user = Depends(get_current_user)
+):
+    try:
+        # Validate status
+        valid_statuses = ["available", "unavailable", "draft", "pending approval"]
+        if status.lower() not in valid_statuses:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid status. Must be one of: {', '.join(valid_statuses)}"
+            )
+
+        # Find the property
+        property_obj = await property_collection.find_one({
+            "_id": ObjectId(property_id)
+        })
+
+        if not property_obj:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Property not found"
+            )
+
+        # Check if the current user owns the property
+        if str(property_obj["owner_id"]) != str(current_user.id):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You don't have permission to update this property"
+            )
+
+        # Update the property status
+        result = await property_collection.update_one(
+            {"_id": ObjectId(property_id)},
+            {"$set": {"status": status.lower()}}
+        )
+
+        if result.modified_count == 0:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Failed to update property status"
+            )
+
+        return {"message": "Property status updated successfully"}
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to update property status: {str(e)}"
         )
