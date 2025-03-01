@@ -6,6 +6,8 @@ from app.api.routes.properties import router as properties_router
 from app.api.routes.wishlist import router as wishlist_router   
 from app.api.routes.chat import router as chat_router
 from app.api.routes.upload import router as upload_router
+
+
 # Create API router
 api_router = APIRouter()
 
@@ -17,5 +19,8 @@ api_router.include_router(wishlist_router, prefix="/wishlist", tags=["wishlist"]
 api_router.include_router(location_router, prefix="/locations", tags=["locations"])
 api_router.include_router(chat_router, prefix="/chat", tags=["chat"])
 api_router.include_router(upload_router, prefix="/upload", tags=["upload"])
+
+
+
 
 

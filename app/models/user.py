@@ -15,7 +15,9 @@ class User(BaseModel):
     first_name: str = ""
     last_name: str = ""
     phone_number: str | None = None
+    phone_verified: bool = False
     date_of_birth: datetime | None = None
+    email_verified: bool = False
     verification_code: str | None = None
     code_expiry: datetime | None = None
     reset_code: str | None = None

@@ -72,6 +72,7 @@ typer = "^0.15.1"
 fastapi-socketio = "^0.0.10"
 python-socketio = {extras = ["asyncio"], version = "^5.12.1"}
 fastapi-cors = "^0.0.6"
+redis = "^5.2.1"
 
 
 [build-system]

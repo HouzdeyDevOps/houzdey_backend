@@ -25,7 +25,7 @@ async def handle_social_auth(user_info: dict, auth_provider: str):
             "last_name": user_info.get("family_name", ""),
             "password": user_info["password"], 
             f"{auth_provider}_id": user_info["sub"],
-            "is_verified": True,
+            "email_verified": True,
             "status": UserStatus.VERIFIED,
             "profile_picture":  user_info.get("picture", ""),
         }

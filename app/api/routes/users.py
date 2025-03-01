@@ -15,6 +15,9 @@ from app.utils.email import send_verification_code
 from fastapi import File, UploadFile
 from app.utils.cloudinary_config import upload_image_to_cloudinary
 from datetime import datetime, timedelta
+import random
+import string
+from app.core.config import settings
 
 router = APIRouter()
 
@@ -44,7 +47,7 @@ async def create_new_user(user: UserCreate):
             {
                 "verification_code": verification_code,
                 "code_expiry": code_expiry,
-                "is_verified": False,
+                "email_verified": False,
             }
         )
 
@@ -52,7 +55,7 @@ async def create_new_user(user: UserCreate):
         new_user = await create_user(user_data)
 
         # Send verification code
-        send_verification_code(user.email, verification_code)
+        await send_verification_code(user.email, verification_code)
 
         return {
             "message": "Registration successful. Please check your email to verify your account.",
@@ -138,7 +141,7 @@ async def verify_user_code(verification: UserVerify):
         success = await update_user(
             user.id,
             {
-                "is_verified": True,
+                "email_verified": True,
                 "verification_code": None,
                 "code_expiry": None,
                 "status": "verified",
@@ -152,6 +155,7 @@ async def verify_user_code(verification: UserVerify):
 
         return {"message": "Email verified successfully"}
     except Exception as e:
+        print(e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e)
         )
@@ -176,7 +180,7 @@ async def resend_code(email: str):
                 "code_expiry": code_expiry,
             },
         )
-        send_verification_code(email, verification_code)
+        await send_verification_code(email, verification_code)
         return {"message": "Verification code resent successfully"}
     except Exception as e:
         raise HTTPException(
@@ -206,7 +210,7 @@ async def resend_verification(email: str = Query(..., description="Email to rese
             },
         )
         
-        send_verification_code(email, verification_code)
+        await send_verification_code(email, verification_code)
         return {"message": "Verification code resent successfully"}
     except HTTPException:
         raise
@@ -329,40 +333,6 @@ async def update_personal_info(
         )
 
 
-# @router.patch("/personal-info")
-# async def update_personal_info(
-#     current_user: User = Depends(get_current_user),
-#     first_name: str = Form(...),
-#     last_name: str = Form(...),
-#     phone_number: str = Form(...),
-#     profile_picture: UploadFile = File(None)
-# ):
-#     try:
-#         user_data = {
-#             "first_name": first_name,
-#             "last_name": last_name,
-#             "phone_number": phone_number,
-#         }
-
-#         if profile_picture:
-#             # Upload to Cloudinary and get URL
-#             file_location = await upload_image_to_cloudinary(
-#                 await profile_picture.read(),
-#                 folder=f"profile_pictures/{current_user['id']}"
-#             )
-#             user_data["profile_picture"] = file_location
-
-#         # Update user in database
-#         await user_collection.update_one(
-#             {"_id": ObjectId(current_user["id"])},
-#             {"$set": user_data}
-#         )
-
-#         return {"message": "Personal information updated successfully"}
-#     except Exception as e:
-#         raise HTTPException(status_code=400, detail=str(e))
-
-
 @router.post("/forgot-password")
 async def forgot_password(email: str = Form(...)):
     """
@@ -386,8 +356,8 @@ async def forgot_password(email: str = Form(...)):
             {"email": email},
             {
                 "$set": {
-                    "reset_code": reset_code,
-                    "reset_code_expiry": code_expiry
+                    "verification_code": reset_code,
+                    "code_expiry": code_expiry
                 }
             }
         )
@@ -513,4 +483,85 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=str(e)
+        )
+
+# Phone verification endpoints
+@router.post("/phone/send-otp")
+async def send_phone_otp(phone_number: str = Form(...), current_user: User = Depends(get_current_user)):
+    """Send OTP to user's phone number"""
+    try:
+        # Generate OTP
+        otp = ''.join(random.choices(string.digits, k=6))
+        expiry = datetime.utcnow() + timedelta(minutes=10)
+
+
+        # Update user with OTP
+        success = await update_user(
+            current_user.id,
+            {
+                "phone_number": phone_number,
+                "verification_code": otp,
+                "code_expiry": expiry,
+            },
+        )
+
+        if not success:
+            raise HTTPException(
+                status_code=500, detail="Failed to update user phone verification data"
+            )
+
+        # TODO: Integrate with SMS service to send OTP
+        # For now, just return the OTP in local (development)
+        if settings.ENVIRONMENT == "local":
+            return {"message": "OTP sent successfully", "otp": otp}
+        
+        return {"message": "OTP sent successfully"}
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e)
+        )
+
+@router.post("/phone/verify")
+async def verify_phone_otp(
+    phone_number: str = Form(...),
+    otp: str = Form(...),
+    current_user: User = Depends(get_current_user)
+):
+    """Verify phone number with OTP"""
+    try:
+        # Verify OTP
+        if (
+            not current_user.verification_code
+            or not current_user.code_expiry
+            or current_user.verification_code != otp
+            or datetime.utcnow() > current_user.code_expiry
+            or current_user.phone_number != phone_number
+        ):
+            raise HTTPException(status_code=400, detail="Invalid or expired OTP")
+
+        # Update user verification status
+        success = await update_user(
+            current_user.id,
+            {
+                "phone_verified": True,
+                "verification_code": None,
+                "code_expiry": None,
+            },
+        )
+
+        print(success)
+
+        # if not success:
+        #     raise HTTPException(
+        #         status_code=500, detail="Failed to update phone verification status"
+        #     )
+
+        return {"message": "Phone number verified successfully"}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e)
         )
