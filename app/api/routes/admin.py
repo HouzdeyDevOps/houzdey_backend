@@ -481,6 +481,19 @@ async def delete_property_admin(
         if not existing_property:
             raise HTTPException(status_code=404, detail="Property not found")
         
+        # Delete associated images from cloud storage
+        if "images" in existing_property:
+            for image_url in existing_property["images"]:
+                try:
+                    from app.utils.cloudinary_config import extract_public_id_from_url, delete_image_from_cloudinary
+                    public_id = extract_public_id_from_url(image_url)
+                    success = await delete_image_from_cloudinary(public_id)
+                    if not success:
+                        print(f"Warning: Failed to delete image {image_url}")
+                except Exception as e:
+                    print(f"Failed to delete image {image_url}: {str(e)}")
+                    # Continue deletion even if image cleanup fails
+        
         # Delete property
         result = await property_collection.delete_one({"_id": ObjectId(property_id)})
         

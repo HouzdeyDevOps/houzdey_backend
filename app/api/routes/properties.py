@@ -20,7 +20,7 @@ router = APIRouter()
 
 
 # GET A USER'S PROPERTIES
-@router.get("/users/me/properties/")
+@router.get("/users/me/properties")
 async def get_user_properties(current_user=Depends(get_current_user)):
     try:
         user_id = str(current_user.id)
@@ -227,6 +227,17 @@ async def delete_user_property(
             status_code=403, detail="Not authorized to delete this property"
         )
 
+    # Delete associated images from cloud storage
+    if "images" in property_obj:
+        for image_url in property_obj["images"]:
+            try:
+                from app.utils.cloudinary_config import extract_public_id_from_url
+                public_id = extract_public_id_from_url(image_url)
+                await delete_image_from_cloudinary(public_id)
+            except Exception as e:
+                print(f"Failed to delete image {image_url}: {str(e)}")
+                # Continue deletion even if image cleanup fails
+
     delete_result = await property_collection.delete_one({"_id": ObjectId(property_id)})
     if delete_result.deleted_count == 0:
         raise HTTPException(status_code=400, detail="Property deletion failed")
@@ -394,15 +405,14 @@ async def delete_property(
         if "images" in property:
             for image_url in property["images"]:
                 try:
-                    # Extract public_id from Cloudinary URL
-                    public_id = image_url.split("/")[-1].split(".")[0]
-                    await delete_image_from_cloudinary(public_id)
+                    from app.utils.cloudinary_config import extract_public_id_from_url
+                    public_id = extract_public_id_from_url(image_url)
+                    success = await delete_image_from_cloudinary(public_id)
+                    if not success:
+                        print(f"Warning: Failed to delete image {image_url}")
                 except Exception as e:
                     print(f"Failed to delete image {image_url}: {str(e)}")
-                    raise HTTPException(
-                        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                        detail="Failed to delete image from cloud storage"
-                    )
+                    # Continue deletion even if image cleanup fails
 
         # Delete the property from database
         result = await property_collection.delete_one({
