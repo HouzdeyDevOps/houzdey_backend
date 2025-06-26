@@ -8,7 +8,8 @@ from .user import (
 from .wishlist import (
     add_to_wishlist,
     remove_from_wishlist,
-    get_user_wishlist
+    get_user_wishlist,
+    get_wishlist_ids
 )
 
 __all__ = [
@@ -19,5 +20,6 @@ __all__ = [
     "add_to_wishlist",
     "remove_from_wishlist",
     "get_user_wishlist",
+    "get_wishlist_ids",
     "update_user"
 ] 

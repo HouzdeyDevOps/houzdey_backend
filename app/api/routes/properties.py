@@ -62,6 +62,7 @@ async def get_properties(
     location_state: Optional[str] = None,
     location_area: Optional[str] = None,
     amenities: Optional[List[str]] = Query(None),
+    listing_type: Optional[str] = Query(None),  # New: Filter by rent or sale
     sort_by: SortBy = SortBy.CREATED_AT,
     sort_order: SortOrder = SortOrder.DESC,
     page: int = Query(1, ge=1),
@@ -95,14 +96,26 @@ async def get_properties(
         filter_query["lga"] = {"$regex": f"^{location_area}$", "$options": "i"}
     if amenities:
         filter_query["amenities.name"] = {"$all": amenities}
+    if listing_type:
+        filter_query["listing_type"] = listing_type
 
-    # Price range filter
+    # Price range filter - handle both rental and sale prices
     if min_price is not None or max_price is not None:
-        filter_query["price"] = {}
-        if min_price:
-            filter_query["price"]["$gte"] = min_price
-        if max_price:
-            filter_query["price"]["$lte"] = max_price
+        # For backward compatibility, if no listing_type is specified, search in the price field
+        if not listing_type:
+            filter_query["price"] = {}
+            if min_price:
+                filter_query["price"]["$gte"] = min_price
+            if max_price:
+                filter_query["price"]["$lte"] = max_price
+        else:
+            # Search in the appropriate price field based on listing type
+            price_field = "rental_price" if listing_type == "rent" else "sale_price"
+            filter_query[price_field] = {}
+            if min_price:
+                filter_query[price_field]["$gte"] = min_price
+            if max_price:
+                filter_query[price_field]["$lte"] = max_price
 
     # Calculate pagination
     skip = (page - 1) * limit
@@ -259,7 +272,10 @@ async def update_user_property(
 async def create_property(
     title: str = Form(...),
     type: str = Form(...),
-    price: float = Form(...),
+    price: float = Form(...),  # For backward compatibility
+    listing_type: str = Form(default="rent"),  # New: "rent" or "sale"
+    rental_price: Optional[float] = Form(None),  # New: Monthly rent
+    sale_price: Optional[float] = Form(None),    # New: Sale price
     description: str = Form(...),
     amenities: str = Form(...),
     beds: int = Form(default=0),
@@ -299,11 +315,22 @@ async def create_property(
             url = await upload_image_to_cloudinary(contents, "properties")
             image_urls.append(url)
             
+        # Handle price logic for backward compatibility and new listing types
+        if listing_type == "rent":
+            actual_rental_price = rental_price if rental_price is not None else price
+            actual_sale_price = sale_price
+        else:  # listing_type == "sale"
+            actual_rental_price = rental_price
+            actual_sale_price = sale_price if sale_price is not None else price
+        
         # Create property document
         property_data = {
             "title": title,
             "type": type,
-            "price": price,
+            "price": price,  # Keep for backward compatibility
+            "listing_type": listing_type,
+            "rental_price": actual_rental_price,
+            "sale_price": actual_sale_price,
             "description": description,
             "amenities": amenities_list,
             "images": image_urls,

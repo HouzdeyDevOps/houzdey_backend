@@ -74,7 +74,6 @@ async def create_new_user(user: UserCreate):
 # login route
 @router.post("/signin", response_model=dict)
 async def login_user(user_credentials: UserLogin):
-    print(user_credentials)
     """Authenticate a user and return a token."""
     try:
         # Get user from database
@@ -115,6 +114,7 @@ async def login_user(user_credentials: UserLogin):
                 "last_name": user.last_name,
                 "phone_number": user.phone_number,
                 "status": user.status,
+                "role": user.role,  # Add role to login response
                 "profile_picture": user.profile_picture,
             },
         }

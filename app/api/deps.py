@@ -1,6 +1,7 @@
 from fastapi import Depends, HTTPException, status  # type: ignore
 from app.core.security import verify_token, oauth2_scheme
 from app.crud import get_user
+from app.models.user import User, UserRole
 
 
 # Dependency function to retrieve the current user from the provided access token
@@ -33,6 +34,25 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
         )
     # Return the user data
     return user
+
+# Add admin role dependencies
+async def get_current_admin_user(current_user: User = Depends(get_current_user)):
+    """Dependency to check if current user is admin or super admin"""
+    if current_user.role not in [UserRole.ADMIN, UserRole.SUPER_ADMIN]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin access required"
+        )
+    return current_user
+
+async def get_current_super_admin_user(current_user: User = Depends(get_current_user)):
+    """Dependency to check if current user is super admin"""
+    if current_user.role != UserRole.SUPER_ADMIN:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Super admin access required"
+        )
+    return current_user
 
 
 

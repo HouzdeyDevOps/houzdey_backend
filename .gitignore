@@ -5,3 +5,8 @@
 .vercel
 .venv/
 __pycache__/
+
+env/
+.env
+.env.local
+.env.development

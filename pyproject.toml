@@ -1,8 +1,9 @@
 [tool.poetry]
-name = "houzdey-backend"
+name = "backend"
 version = "0.1.0"
 description = ""
 authors = ["el-collins <charlescollins476@gmail.com>"]
+package-mode = false
 readme = "README.md"
 
 [tool.poetry.dependencies]

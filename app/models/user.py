@@ -8,6 +8,11 @@ class UserStatus(str, Enum):
     VERIFIED = "verified"
     SUSPENDED = "suspended"
 
+class UserRole(str, Enum):
+    USER = "user"
+    ADMIN = "admin"
+    SUPER_ADMIN = "super_admin"
+
 class User(BaseModel):
     id: str | None = None
     email: EmailStr = Field(..., min_length=6)
@@ -23,6 +28,7 @@ class User(BaseModel):
     reset_code: str | None = None
     reset_code_expiry: datetime | None = None
     status: UserStatus = UserStatus.PENDING 
+    role: UserRole = UserRole.USER
     is_active: bool = False
     plan: str = "Basic"
     profile_picture: str = ""

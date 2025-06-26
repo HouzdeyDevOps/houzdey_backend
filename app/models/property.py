@@ -12,6 +12,10 @@ class SortBy(str, Enum):
     CREATED_AT = "created_at"
     PRICE = "price"
 
+class ListingType(str, Enum):
+    RENT = "rent"
+    SALE = "sale"
+
 class PropertyResponse(BaseModel):
     properties: List[dict]
     pagination: dict
@@ -25,7 +29,11 @@ class Property(BaseModel):
     id: Optional[str] = None
     title: str
     type: str  # Matches PropertyType enum from frontend
-    price: float
+    # Pricing fields - separate for rent and sale
+    price: float  # For backward compatibility - maps to rental_price for existing data
+    rental_price: Optional[float] = None  # Monthly rent price
+    sale_price: Optional[float] = None    # Sale price
+    listing_type: ListingType = ListingType.RENT  # Default to rent for backward compatibility
     amenities: List[PropertyAmenity]
     description: str
     images: List[str]
@@ -54,7 +62,10 @@ class PropertyCreate(BaseModel):
     location_state: str
     location_area: str
     description: str
-    price: float
+    price: float  # For backward compatibility
+    rental_price: Optional[float] = None
+    sale_price: Optional[float] = None
+    listing_type: ListingType = ListingType.RENT
     property_address: str
     estate_name: str = None
     property_type: str
@@ -75,7 +86,10 @@ class PropertyUpdate(BaseModel):
     location_state: Optional[str]
     location_area: Optional[str]
     description: Optional[str]
-    price: Optional[float]
+    price: Optional[float]  # For backward compatibility
+    rental_price: Optional[float]
+    sale_price: Optional[float]
+    listing_type: Optional[ListingType]
     property_address: Optional[str]
     estate_name: Optional[str]
     property_type: Optional[str]

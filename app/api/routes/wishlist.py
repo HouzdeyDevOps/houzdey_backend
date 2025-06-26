@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
-from app.crud import add_to_wishlist, get_user_wishlist, remove_from_wishlist
+from app.crud import add_to_wishlist, get_user_wishlist, remove_from_wishlist, get_wishlist_ids
 from app.api.deps import get_current_user
 from pydantic import BaseModel
 
@@ -32,5 +32,12 @@ async def remove_wishlist(property_id: str, current_user=Depends(get_current_use
 
 @router.get("")
 async def get_from_wishlist(current_user=Depends(get_current_user)):
+    """Get user's wishlist with full property details"""
     items = await get_user_wishlist(current_user.id)
     return {"items": items}
+
+@router.get("/ids")
+async def get_wishlist_property_ids(current_user=Depends(get_current_user)):
+    """Get user's wishlist property IDs only"""
+    property_ids = await get_wishlist_ids(current_user.id)
+    return {"items": property_ids}
