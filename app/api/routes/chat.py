@@ -331,14 +331,17 @@ async def delete_message(
                 try:
                     content_data = json.loads(content)
                     if content_data.get("file_url"):
-                        # Extract public_id from Cloudinary URL
-                        public_id = content_data["file_url"].split("/")[-1].split(".")[0]
-                        # Delete from Cloudinary
-                        cloudinary.uploader.destroy(public_id)
-                except (json.JSONDecodeError, KeyError):
-                    pass  # Not a JSON message or doesn't have file_url
+                        # Use robust URL parsing for Cloudinary
+                        from app.utils.cloudinary_config import extract_public_id_from_url
+                        public_id = extract_public_id_from_url(content_data["file_url"])
+                        if public_id:
+                            # Delete from Cloudinary
+                            result = cloudinary.uploader.destroy(public_id)
+                            logger.info(f"Deleted Cloudinary file: {public_id}, result: {result}")
+                except (json.JSONDecodeError, KeyError) as e:
+                    logger.warning(f"Failed to parse message content as JSON: {e}")
         except Exception as e:
-            print(f"Error deleting file from Cloudinary: {str(e)}")
+            logger.error(f"Error deleting file from Cloudinary: {str(e)}")
             # Continue with message deletion even if file deletion fails
 
         # Delete the message

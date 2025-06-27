@@ -38,6 +38,9 @@ class User(BaseModel):
     wishlist: List[str] = []
     bio: str | None = None
     company: str | None = None
+    # Chat status fields
+    chat_status: str = "offline"  # "online" or "offline"
+    last_seen: datetime | None = None
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 

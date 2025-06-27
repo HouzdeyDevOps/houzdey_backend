@@ -31,7 +31,7 @@ class Property(BaseModel):
     type: str  # Matches PropertyType enum from frontend
     # Pricing fields - separate for rent and sale
     price: float  # For backward compatibility - maps to rental_price for existing data
-    rental_price: Optional[float] = None  # Monthly rent price
+    rental_price: Optional[float] = None  # Annual rent price
     sale_price: Optional[float] = None    # Sale price
     listing_type: ListingType = ListingType.RENT  # Default to rent for backward compatibility
     amenities: List[PropertyAmenity]

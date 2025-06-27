@@ -423,6 +423,11 @@ async def track_property_inquiry(
 ):
     """Track a property inquiry"""
     try:
+        # Get property details first
+        property_doc = await property_collection.find_one({"_id": ObjectId(property_id)})
+        if not property_doc:
+            raise HTTPException(status_code=404, detail="Property not found")
+        
         inquiry = PropertyInquiry(
             property_id=property_id,
             user_id=str(current_user.id),
@@ -434,8 +439,30 @@ async def track_property_inquiry(
         
         result = await property_inquiries_collection.insert_one(inquiry.model_dump())
         
-        # TODO: Send notification to property owner
-        # await notification_service.send_notification(...)
+        # Send notification to property owner
+        from app.services.notification_service import notification_service
+        from app.models.notifications import NotificationEvent
+        
+        property_owner_id = property_doc.get("owner_id")
+        if property_owner_id and property_owner_id != str(current_user.id):
+            context_data = {
+                "property_title": property_doc.get("title", "Unknown Property"),
+                "inquirer_name": f"{current_user.first_name} {current_user.last_name}".strip(),
+                "inquiry_message": message or "No message provided",
+                "property_id": property_id,
+                "inquirer_email": current_user.email,
+                "inquirer_phone": phone_number or "Not provided",
+                "preferred_contact_method": preferred_contact_method or "Not specified",
+                "inquiry_type": inquiry_type,
+                "property_url": f"/properties/{property_id}"
+            }
+            
+            await notification_service.send_notification(
+                user_id=property_owner_id,
+                event=NotificationEvent.PROPERTY_INQUIRY,
+                context_data=context_data,
+                priority=2  # High priority for property inquiries
+            )
         
         return {"status": "tracked", "inquiry_id": str(result.inserted_id)}
         
