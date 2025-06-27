@@ -276,29 +276,25 @@ async def upload_profile_picture(
 
 @router.post("/personal-info")
 async def update_personal_info(
-    email: str = Form(...),
     first_name: str = Form(...),
     last_name: str = Form(...),
-    phone_number: str = Form(...),
-    date_of_birth: str = Form(...),
+    phone_number: str = Form(""),
+    date_of_birth: str = Form(""),
     profile_picture: UploadFile = File(None),
+    current_user: User = Depends(get_current_user)
 ):
     """Update user's personal information"""
     try:
-        user = await get_user(email)
-        if not user:
-            raise HTTPException(status_code=404, detail="User not found")
-
-        if user.status != UserStatus.VERIFIED:
+        if current_user.status != UserStatus.VERIFIED:
             raise HTTPException(status_code=400, detail="Email not verified")
 
         # Upload profile picture to Cloudinary if provided
         profile_picture_url = None
-        if profile_picture:
+        if profile_picture and profile_picture.filename:
             try:
                 contents = await profile_picture.read()
                 profile_picture_url = await upload_image_to_cloudinary(
-                    contents, folder=f"profile_pictures/{user.id}"
+                    contents, folder=f"profile_pictures/{current_user.id}"
                 )
             except Exception as e:
                 raise HTTPException(
@@ -306,28 +302,42 @@ async def update_personal_info(
                     detail=f"Failed to upload profile picture: {str(e)}",
                 )
 
-        # Update user with personal info
+        # Prepare update data
         update_data = {
             "first_name": first_name,
             "last_name": last_name,
-            "phone_number": phone_number,
-            "date_of_birth": datetime.strptime(date_of_birth, "%Y-%m-%d"),
-            # "status": "complete",
             "is_active": True,
-            "profile_picture": profile_picture_url,
+            "updated_at": datetime.utcnow(),
         }
+
+        # Only add phone_number if provided
+        if phone_number.strip():
+            update_data["phone_number"] = phone_number
+
+        # Only add date_of_birth if provided and valid
+        if date_of_birth.strip():
+            try:
+                update_data["date_of_birth"] = datetime.strptime(date_of_birth, "%Y-%m-%d")
+            except ValueError:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Invalid date format. Please use YYYY-MM-DD format."
+                )
 
         # Only add profile picture URL if an image was uploaded
         if profile_picture_url:
             update_data["profile_picture"] = profile_picture_url
 
-        await update_user(user.id, update_data)
+        await update_user(current_user.id, update_data)
 
         return {
             "message": "Personal information updated successfully",
             "profile_picture_url": profile_picture_url if profile_picture_url else None,
         }
+    except HTTPException:
+        raise
     except Exception as e:
+        print(f"Error in update_personal_info: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e)
         )
@@ -441,6 +451,169 @@ async def reset_password(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to reset password"
+        )
+
+
+@router.post("/change-password")
+async def change_password(
+    current_password: str = Form(...),
+    new_password: str = Form(...),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Change user's password (requires current password verification)
+    """
+    try:
+        # Verify current password
+        if not verify_password(current_password, current_user.password):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Current password is incorrect"
+            )
+        
+        # Validate new password (same validation as in UserCreate)
+        if len(new_password) < 8:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Password must be at least 8 characters long"
+            )
+        if not any(char.isdigit() for char in new_password):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Password must include a number"
+            )
+        if not any(char.isupper() for char in new_password):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Password must include an uppercase letter"
+            )
+        if not any(char.islower() for char in new_password):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Password must include a lowercase letter"
+            )
+
+        # Hash new password
+        hashed_password = get_password_hash(new_password)
+        
+        # Update user's password
+        update_result = await user_collection.update_one(
+            {"email": current_user.email},
+            {
+                "$set": {
+                    "password": hashed_password,
+                    "updated_at": datetime.utcnow()
+                }
+            }
+        )
+
+        if update_result.modified_count == 0:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to update password"
+            )
+
+        return {"message": "Password changed successfully"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error in change_password: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to change password"
+        )
+
+
+@router.post("/disconnect-social-account")
+async def disconnect_social_account(
+    provider: str = Form(...),  # "google", "facebook", "apple"
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Disconnect a social media account from user profile
+    """
+    try:
+        if provider not in ["google", "facebook", "apple"]:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid social provider"
+            )
+        
+        # Check if user has a password set (if not, they can't disconnect social auth)
+        if not current_user.password or len(current_user.password) < 8:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="You must set a password before disconnecting social accounts"
+            )
+        
+        field_name = f"{provider}_id"
+        update_result = await user_collection.update_one(
+            {"email": current_user.email},
+            {
+                "$unset": {field_name: ""},
+                "$set": {"updated_at": datetime.utcnow()}
+            }
+        )
+
+        if update_result.modified_count == 0:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to disconnect social account"
+            )
+
+        return {"message": f"{provider.capitalize()} account disconnected successfully"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error disconnecting {provider} account: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to disconnect social account"
+        )
+
+
+@router.post("/deactivate-account")
+async def deactivate_account(
+    password: str = Form(...),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Deactivate user account (requires password verification)
+    """
+    try:
+        # Verify password
+        if not verify_password(password, current_user.password):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Password is incorrect"
+            )
+        
+        # Update user status to suspended and set is_active to False
+        update_result = await user_collection.update_one(
+            {"email": current_user.email},
+            {
+                "$set": {
+                    "status": UserStatus.SUSPENDED,
+                    "is_active": False,
+                    "updated_at": datetime.utcnow()
+                }
+            }
+        )
+
+        if update_result.modified_count == 0:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to deactivate account"
+            )
+
+        return {"message": "Account deactivated successfully"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error deactivating account: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to deactivate account"
         )
 
 # OAuth2 token endpoint for Swagger UI
