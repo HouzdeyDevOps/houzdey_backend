@@ -28,12 +28,14 @@ class PropertyAmenity(BaseModel):
 class Property(BaseModel):
     id: Optional[str] = None
     title: str
-    type: str  # Matches PropertyType enum from frontend
-    # Pricing fields - separate for rent and sale
-    price: float  # For backward compatibility - maps to rental_price for existing data
-    rental_price: Optional[float] = None  # Annual rent price
-    sale_price: Optional[float] = None    # Sale price
-    listing_type: ListingType = ListingType.RENT  # Default to rent for backward compatibility
+    type: str
+    price: float
+    rental_price: Optional[float] = None
+    sale_price: Optional[float] = None
+    listing_type: ListingType = ListingType.RENT
+    agency_fee: Optional[float] = None
+    legal_fee: Optional[float] = None
+    other_fees: Optional[float] = None
     amenities: List[PropertyAmenity]
     description: str
     images: List[str]
@@ -48,7 +50,7 @@ class Property(BaseModel):
     lga: str  # Local Government Area
     ward: str
     estate: Optional[str]
-    size: str
+    size: Optional[str] = None
     owner_id: str
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
