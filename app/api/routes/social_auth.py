@@ -1,6 +1,7 @@
-from fastapi import APIRouter, HTTPException, Body
+from fastapi import APIRouter, HTTPException, Body, Depends
 from app.core.security import create_token
-from app.crud import get_user, create_user
+from app.services.user_service import UserService
+from app.core.dependencies import get_user_service
 from app.utils.google_auth import  get_google_oauth_token, get_google_user_info
 from app.models.user import UserStatus
 # from app.utils.facebook_auth import authenticate_facebook_token
@@ -13,11 +14,12 @@ import base64
 
 router = APIRouter()
 
-async def handle_social_auth(user_info: dict, auth_provider: str):
-    # Check if user exists
-    existing_user = await get_user(email=user_info["email"])
-    
-    if not existing_user:
+async def handle_social_auth(user_info: dict, auth_provider: str, user_service: UserService):
+    try:
+        # Check if user exists
+        existing_user = await user_service.get_user_by_email(user_info["email"])
+        user = existing_user
+    except:
         # Create new user
         user_data = {
             "email": user_info["email"],
@@ -26,26 +28,24 @@ async def handle_social_auth(user_info: dict, auth_provider: str):
             "password": user_info["password"], 
             f"{auth_provider}_id": user_info["sub"],
             "email_verified": True,
-            "status": UserStatus.VERIFIED,
+            "status": UserStatus.VERIFIED.value,
             "profile_picture":  user_info.get("picture", ""),
         }
-        user = await create_user(user_data)
-    else:
-        user = existing_user
+        user = await user_service.create_user(user_data)
 
     # Create access token
-    access_token = create_token(subject=user.email, type_ops="access")
+    access_token = create_token(subject=user["email"], type_ops="access")
     
     return {
         "access_token": access_token,
         "token_type": "bearer",
         "user": {
-            "id": str(user.id),
-            "email": user.email,
-            "first_name": user.first_name,
-            "last_name": user.last_name,
-            "status": user.status,
-            "profile_picture": user.profile_picture
+            "id": user["id"],
+            "email": user["email"],
+            "first_name": user["first_name"],
+            "last_name": user["last_name"],
+            "status": user["status"],
+            "profile_picture": user["profile_picture"]
         }
     }
 
@@ -76,7 +76,10 @@ async def google_auth():
     return {"auth_url": auth_url, "state": state, "code_verifier": code_verifier}
 
 @router.post("/google/callback")
-async def google_callback(code: str = Body(..., embed=True)):
+async def google_callback(
+    code: str = Body(..., embed=True),
+    user_service: UserService = Depends(get_user_service)
+):
     """Handle Google OAuth callback"""
     try:
         # Get tokens from Google
@@ -89,7 +92,7 @@ async def google_callback(code: str = Body(..., embed=True)):
         user_info["password"] = secrets.token_urlsafe(32)
         
         # Handle social auth
-        return await handle_social_auth(user_info, "google")
+        return await handle_social_auth(user_info, "google", user_service)
         
     except Exception as e:
         raise HTTPException(

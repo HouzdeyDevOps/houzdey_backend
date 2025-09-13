@@ -24,7 +24,8 @@ from app.models.notifications import (
     NotificationCategory,
     NotificationBatch
 )
-from app.services.notification_service import notification_service
+from app.services.notification_service import NotificationService
+from app.core.dependencies import get_notification_service
 
 logger = logging.getLogger(__name__)
 router = APIRouter()

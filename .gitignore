@@ -4,6 +4,7 @@
 
 .vercel
 .venv/
+venv/
 __pycache__/
 
 env/
