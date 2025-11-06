@@ -59,3 +59,5 @@
 2025-11-06 22:34:06,490 - app.core.database - INFO - All database indexes created successfully (database.py:230)
 2025-11-06 22:38:02,131 - app.core.error_handlers - WARNING - HTTP exception: 400: Invalid verification code - Status: 400 - Path: /api/v1/users/verify-code - Method: POST (error_handlers.py:74)
 2025-11-06 22:45:51,877 - app.core.error_handlers - WARNING - HTTP exception: 409: User with this email already exists - Status: 500 - Path: /api/v1/users/register - Method: POST (error_handlers.py:74)
+2025-11-06 23:02:32,961 - app.core.error_handlers - WARNING - HTTP exception: Could not validate credentials - Status: 403 - Path: /api/v1/users/me - Method: GET (error_handlers.py:74)
+2025-11-06 23:02:49,558 - app.core.error_handlers - WARNING - HTTP exception: Could not validate credentials - Status: 403 - Path: /api/v1/users/me - Method: GET (error_handlers.py:74)

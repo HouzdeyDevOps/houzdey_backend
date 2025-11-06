@@ -6,7 +6,7 @@ from app.api.deps import get_current_user
 from app.models.property import Property, PropertyUpdate, PropertyResponse, SortOrder, SortBy
 from app.services.property_service import PropertyService
 from app.core.dependencies import get_property_service
-from app.utils.cloudinary_config import upload_image_to_cloudinary
+from app.utils.cloudinary_config import upload_image_to_cloudinary, upload_video_to_cloudinary
 import json
 
 router = APIRouter()
@@ -110,6 +110,7 @@ async def create_property(
     estate: str = Form(None),
     size: str = Form(...),
     images: List[UploadFile] = File(...),
+    video: Optional[UploadFile] = File(None),
     current_user: dict = Depends(get_current_user),
     property_service: PropertyService = Depends(get_property_service)
 ):
@@ -131,6 +132,12 @@ async def create_property(
             url = await upload_image_to_cloudinary(contents, "properties")
             image_urls.append(url)
         
+        # Upload video to Cloudinary (optional)
+        video_url = None
+        if video:
+            video_contents = await video.read()
+            video_url = await upload_video_to_cloudinary(video_contents, "properties")
+        
         # Prepare property data
         property_data = {
             "title": title,
@@ -142,6 +149,7 @@ async def create_property(
             "description": description,
             "amenities": amenities_list,
             "images": image_urls,
+            "video": video_url,
             "beds": beds,
             "baths": baths,
             "toilets": toilets,

@@ -39,6 +39,7 @@ class Property(BaseModel):
     amenities: List[PropertyAmenity]
     description: str
     images: List[str]
+    video: Optional[str] = None
     location: str
     beds: int
     baths: int

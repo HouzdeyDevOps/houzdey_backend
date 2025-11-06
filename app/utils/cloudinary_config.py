@@ -37,6 +37,35 @@ async def upload_image_to_cloudinary(file_content: bytes, folder: str) -> str:
     return result['secure_url']
 
 
+async def upload_video_to_cloudinary(file_content: bytes, folder: str) -> str:
+    """
+    Upload video to Cloudinary in a project-specific folder structure
+    
+    Args:
+        file_content: Video bytes
+        folder: Subfolder name (e.g., 'properties')
+    
+    Returns:
+        Secure HTTPS URL of uploaded video
+    
+    Example folder structure in Cloudinary:
+        houzdey/properties/videos/abc123.mp4
+    """
+    # Prefix folder with project name for organization
+    organized_folder = f"{PROJECT_PREFIX}/{folder}/videos"
+    
+    result = cloudinary.uploader.upload(
+        file_content,
+        folder=organized_folder,
+        resource_type="video",
+        eager=[
+            {"quality": "auto", "fetch_format": "auto"}
+        ],
+        eager_async=True
+    )
+    return result['secure_url']
+
+
 def extract_public_id_from_url(cloudinary_url: str) -> str:
     """
     Extract public_id from Cloudinary URL
