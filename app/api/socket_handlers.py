@@ -14,7 +14,6 @@ from app.core.database import (
 from app.core.config import settings
 from app.services.user_service import UserService
 from app.services.notification_service import NotificationService
-from app.models.notifications import NotificationEvent
 
 logger = logging.getLogger(__name__)
 
@@ -35,11 +34,12 @@ async def authenticate_socket(token: str):
             raise JWTError
         
         # Get user by email to get the user ID
-        user = await get_user(user_email)
+        user_service = UserService()
+        user = await user_service.get_user_by_email(user_email)
         if not user:
             raise JWTError
             
-        return user.id  # Return user ID instead of email
+        return user["id"]  # Return user ID instead of email
     except JWTError:
         logger.error(f"Socket authentication failed for token")
         return None
@@ -101,6 +101,9 @@ async def is_user_online(user_id: str) -> bool:
 async def send_chat_notification(sender_id: str, receiver_id: str, message_content: str, conversation_id: str, property_id: str):
     """Send notification for new chat message"""
     try:
+        # Initialize notification service
+        notification_service = NotificationService()
+        
         # Get sender details
         sender = await user_collection.find_one({"_id": ObjectId(sender_id)})
         if not sender:
@@ -122,23 +125,15 @@ async def send_chat_notification(sender_id: str, receiver_id: str, message_conte
         # Check if receiver is online
         receiver_online = await is_user_online(receiver_id)
         
-        # Always send in-app notification
-        context_data = {
-            "sender_name": sender_name,
-            "sender_id": sender_id,
-            "message_preview": message_preview,
-            "conversation_id": conversation_id,
-            "property_id": property_id,
-            "property_title": property_title,
-            "chat_url": f"/chat/{conversation_id}"
-        }
-
-        # Send notification
-        await notification_service.send_notification(
+        # Create notification title and message
+        notification_title = f"New message from {sender_name}"
+        notification_message = f"{sender_name} sent you a message about {property_title}: {message_preview}"
+        
+        # Send notification using create_notification
+        await notification_service.create_notification(
             user_id=receiver_id,
-            event=NotificationEvent.NEW_MESSAGE,
-            context_data=context_data,
-            priority=2 if not receiver_online else 1  # Higher priority if user is offline
+            title=notification_title,
+            message=notification_message
         )
 
         logger.info(f"Chat notification sent from {sender_id} to {receiver_id} for conversation {conversation_id}")
@@ -299,7 +294,16 @@ def register_socket_handlers(socket_manager):
                 "read": message["read"],
             }
 
-            # Update conversation with last message info and increment unread count
+            # Determine which user's unread count to increment
+            # If sender is the regular user, increment owner's unread count
+            # If sender is the owner, increment user's unread count
+            unread_field = (
+                "unread_count_owner" 
+                if user_id == conversation["user_id"] 
+                else "unread_count_user"
+            )
+
+            # Update conversation with last message info and increment the appropriate unread count
             await conversation_collection.update_one(
                 {"_id": ObjectId(conversation_id)},
                 {
@@ -307,7 +311,7 @@ def register_socket_handlers(socket_manager):
                         "last_message": content,
                         "last_message_time": datetime.utcnow(),
                     },
-                    "$inc": {"unread_count": 1}
+                    "$inc": {unread_field: 1}
                 },
             )
 

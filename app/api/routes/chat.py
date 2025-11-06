@@ -51,6 +51,12 @@ async def get_conversations(current_user: User = Depends(get_current_user)):
             if not other_user:
                 continue  # Skip if other user not found
 
+            # Determine the correct unread count for the current user
+            # If current user is the regular user, get unread_count_user
+            # If current user is the owner, get unread_count_owner
+            is_current_user_owner = conv["owner_id"] == str(current_user["id"])
+            unread_count = conv.get("unread_count_owner" if is_current_user_owner else "unread_count_user", 0)
+
             # Format the conversation with all required details
             formatted_conversations.append({
                 "id": str(conv["_id"]),
@@ -76,7 +82,7 @@ async def get_conversations(current_user: User = Depends(get_current_user)):
                 },
                 "last_message": conv.get("last_message"),
                 "last_message_time": conv.get("last_message_time"),
-                "unread_count": conv.get("unread_count", 0),
+                "unread_count": unread_count,
                 "created_at": conv.get("created_at", datetime.utcnow())
             })
 
@@ -109,6 +115,10 @@ async def get_conversation(conversation_id: str, current_user: User = Depends(ge
         if not other_user:
             raise HTTPException(status_code=404, detail="Other user not found")
 
+        # Determine the correct unread count for the current user
+        is_current_user_owner = conversation["owner_id"] == str(current_user["id"])
+        unread_count = conversation.get("unread_count_owner" if is_current_user_owner else "unread_count_user", 0)
+
         # Format and return conversation with all details
         return {
             "id": str(conversation["_id"]),
@@ -134,7 +144,7 @@ async def get_conversation(conversation_id: str, current_user: User = Depends(ge
             },
             "last_message": conversation.get("last_message"),
             "last_message_time": conversation.get("last_message_time"),
-            "unread_count": conversation.get("unread_count", 0),
+            "unread_count": unread_count,
             "created_at": conversation.get("created_at", datetime.utcnow())
         }
     except Exception as e:
@@ -222,7 +232,8 @@ async def create_conversation(property_id: str, current_user=Depends(get_current
             "created_at": datetime.utcnow(),
             "last_message": None,
             "last_message_time": None,
-            "unread_count": 0,
+            "unread_count_user": 0,
+            "unread_count_owner": 0,
         }
 
         await conversation_collection.insert_one(conversation)
@@ -243,16 +254,25 @@ async def create_conversation(property_id: str, current_user=Depends(get_current
 async def mark_messages_as_read(
     conversation_id: str, current_user=Depends(get_current_user)
 ):
+    # Get the conversation to determine which unread count to reset
+    conversation = await conversation_collection.find_one({"_id": ObjectId(conversation_id)})
+    if not conversation:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+    
     # Mark messages as read
     await message_collection.update_many(
         {"conversation_id": conversation_id, "receiver_id": str(current_user["id"])},
         {"$set": {"read": True}},
     )
     
-    # Reset unread count
+    # Determine which unread count field to reset based on current user's role
+    is_current_user_owner = conversation["owner_id"] == str(current_user["id"])
+    unread_field = "unread_count_owner" if is_current_user_owner else "unread_count_user"
+    
+    # Reset the appropriate unread count
     await conversation_collection.update_one(
         {"_id": ObjectId(conversation_id)},
-        {"$set": {"unread_count": 0}}
+        {"$set": {unread_field: 0}}
     )
     
     # Emit socket event to notify other users
