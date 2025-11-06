@@ -138,12 +138,12 @@ async def create_review(
             raise HTTPException(status_code=404, detail="Reviewed user not found")
         
         # Check if user is trying to review themselves
-        if review_data.reviewed_user_id == str(current_user.id):
+        if review_data.reviewed_user_id == str(current_user["id"]):
             raise HTTPException(status_code=400, detail="Cannot review yourself")
         
         # Check if user has already reviewed this person (optional: allow multiple reviews)
         existing_review = await review_collection.find_one({
-            "reviewer_id": str(current_user.id),
+            "reviewer_id": str(current_user["id"]),
             "reviewed_user_id": review_data.reviewed_user_id,
             "status": ReviewStatus.ACTIVE
         })
@@ -153,7 +153,7 @@ async def create_review(
         
         # Create review
         review = Review(
-            reviewer_id=str(current_user.id),
+            reviewer_id=str(current_user["id"]),
             reviewed_user_id=review_data.reviewed_user_id,
             rating=review_data.rating,
             title=review_data.title,
@@ -276,9 +276,9 @@ async def get_my_reviews(
     try:
         # Build filter query based on type
         if type == "received":
-            filter_query = {"reviewed_user_id": str(current_user.id)}
+            filter_query = {"reviewed_user_id": str(current_user["id"])}
         else:  # given
-            filter_query = {"reviewer_id": str(current_user.id)}
+            filter_query = {"reviewer_id": str(current_user["id"])}
         
         filter_query["status"] = ReviewStatus.ACTIVE
         
@@ -337,7 +337,7 @@ async def update_review(
             raise HTTPException(status_code=404, detail="Review not found")
         
         # Check if user is the reviewer
-        if review["reviewer_id"] != str(current_user.id):
+        if review["reviewer_id"] != str(current_user["id"]):
             raise HTTPException(status_code=403, detail="Can only update your own reviews")
         
         # Prepare update data
@@ -389,7 +389,7 @@ async def delete_review(
             raise HTTPException(status_code=404, detail="Review not found")
         
         # Check if user is the reviewer
-        if review["reviewer_id"] != str(current_user.id):
+        if review["reviewer_id"] != str(current_user["id"]):
             raise HTTPException(status_code=403, detail="Can only delete your own reviews")
         
         # Soft delete by updating status
@@ -421,7 +421,7 @@ async def like_review(
 ):
     """Like or unlike a review"""
     try:
-        user_id = str(current_user.id)
+        user_id = str(current_user["id"])
         
         # Get the review
         review = await review_collection.find_one({"_id": ObjectId(review_id)})
@@ -473,7 +473,7 @@ async def reply_to_review(
         
         # Create reply
         reply = ReviewReply(
-            user_id=str(current_user.id),
+            user_id=str(current_user["id"]),
             content=reply_data.content
         )
         
@@ -499,7 +499,7 @@ async def report_review(
 ):
     """Report a review for moderation"""
     try:
-        user_id = str(current_user.id)
+        user_id = str(current_user["id"])
         
         # Get the review
         review = await review_collection.find_one({"_id": ObjectId(review_id)})

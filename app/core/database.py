@@ -12,6 +12,10 @@ def get_db_client():
 # Get a single database
 houzdey_database = get_db_client().Houzdey
 
+def get_collection(collection_name: str):
+    """Get a collection from the database by name"""
+    return houzdey_database[collection_name]
+
 # Create collections within the single database
 user_collection = houzdey_database.users
 property_collection = houzdey_database.properties
@@ -126,6 +130,14 @@ async def create_indexes():
         IndexModel([("scheduled_for", ASCENDING)], background=True),
         IndexModel([("created_at", DESCENDING)], background=True)
     ]
+    
+    # Token Blacklist Indexes
+    token_blacklist_indexes = [
+        IndexModel([("token", ASCENDING)], unique=True, background=True),
+        IndexModel([("user_email", ASCENDING)], background=True),
+        IndexModel([("expires_at", ASCENDING)], background=True, expireAfterSeconds=0),  # TTL index
+        IndexModel([("token_type", ASCENDING)], background=True)
+    ]
 
     # Create all indexes
     await property_collection.create_indexes(property_indexes)
@@ -137,3 +149,7 @@ async def create_indexes():
     await property_views_collection.create_indexes(analytics_indexes)
     await property_inquiries_collection.create_indexes(analytics_indexes)
     await notifications_collection.create_indexes(notification_indexes)
+    
+    # Create token blacklist collection indexes
+    blacklisted_tokens_collection = houzdey_database.blacklisted_tokens
+    await blacklisted_tokens_collection.create_indexes(token_blacklist_indexes)

@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException, Body, Depends
-from app.core.security import create_token
+from app.core.security import create_token, create_refresh_token
 from app.services.user_service import UserService
 from app.core.dependencies import get_user_service
 from app.utils.google_auth import  get_google_oauth_token, get_google_user_info
@@ -35,9 +35,11 @@ async def handle_social_auth(user_info: dict, auth_provider: str, user_service: 
 
     # Create access token
     access_token = create_token(subject=user["email"], type_ops="access")
+    refresh_token = create_refresh_token(subject=user["email"])
     
     return {
         "access_token": access_token,
+        "refresh_token": refresh_token,
         "token_type": "bearer",
         "user": {
             "id": user["id"],

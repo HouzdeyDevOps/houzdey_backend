@@ -33,10 +33,10 @@ async def get_conversations(current_user: User = Depends(get_current_user)):
         # Find all conversations where the current user is either the user or owner
         conversations = await conversation_collection.find({
             "$or": [
-                {"user_id": str(current_user.id)},
-                {"owner_id": str(current_user.id)}
+                {"user_id": str(current_user["id"])},
+                {"owner_id": str(current_user["id"])}
             ]
-        }).sort("last_message_time", -1).to_list(None)
+        }).sort("last_message_time", -1).to_list(length=None)
 
         formatted_conversations = []
         for conv in conversations:
@@ -46,7 +46,7 @@ async def get_conversations(current_user: User = Depends(get_current_user)):
                 continue  # Skip if property not found
 
             # Get other user details (the one who is not the current user)
-            other_user_id = conv["owner_id"] if conv["user_id"] == str(current_user.id) else conv["user_id"]
+            other_user_id = conv["owner_id"] if conv["user_id"] == str(current_user["id"]) else conv["user_id"]
             other_user = await user_collection.find_one({"_id": ObjectId(other_user_id)})
             if not other_user:
                 continue  # Skip if other user not found
@@ -95,7 +95,7 @@ async def get_conversation(conversation_id: str, current_user: User = Depends(ge
             raise HTTPException(status_code=404, detail="Conversation not found")
 
         # Verify user has access to this conversation
-        if str(conversation["user_id"]) != str(current_user.id) and str(conversation["owner_id"]) != str(current_user.id):
+        if str(conversation["user_id"]) != str(current_user["id"]) and str(conversation["owner_id"]) != str(current_user["id"]):
             raise HTTPException(status_code=403, detail="Access denied")
 
         # Get property details
@@ -104,7 +104,7 @@ async def get_conversation(conversation_id: str, current_user: User = Depends(ge
             raise HTTPException(status_code=404, detail="Property not found")
 
         # Get other user details
-        other_user_id = conversation["owner_id"] if conversation["user_id"] == str(current_user.id) else conversation["user_id"]
+        other_user_id = conversation["owner_id"] if conversation["user_id"] == str(current_user["id"]) else conversation["user_id"]
         other_user = await user_collection.find_one({"_id": ObjectId(other_user_id)})
         if not other_user:
             raise HTTPException(status_code=404, detail="Other user not found")
@@ -150,7 +150,7 @@ async def get_messages(
         conversation = await conversation_collection.find_one(
             {
                 "_id": ObjectId(conversation_id),
-                "$or": [{"user_id": current_user.id}, {"owner_id": current_user.id}],
+                "$or": [{"user_id": current_user["id"]}, {"owner_id": current_user["id"]}],
             }
         )
 
@@ -199,7 +199,7 @@ async def create_conversation(property_id: str, current_user=Depends(get_current
         existing_conversation = await conversation_collection.find_one(
             {
                 "property_id": property_id,
-                "user_id": str(current_user.id),
+                "user_id": str(current_user["id"]),
                 "owner_id": str(property["owner_id"]),
             }
         )
@@ -208,7 +208,7 @@ async def create_conversation(property_id: str, current_user=Depends(get_current
             return {
                 "id": str(existing_conversation["_id"]),
                 "property_id": property_id,
-                "user_id": str(current_user.id),
+                "user_id": str(current_user["id"]),
                 "owner_id": str(property["owner_id"]),
                 "created_at": existing_conversation["created_at"],
             }
@@ -217,7 +217,7 @@ async def create_conversation(property_id: str, current_user=Depends(get_current
         conversation = {
             "_id": ObjectId(),
             "property_id": property_id,
-            "user_id": str(current_user.id),
+            "user_id": str(current_user["id"]),
             "owner_id": str(property["owner_id"]),
             "created_at": datetime.utcnow(),
             "last_message": None,
@@ -230,7 +230,7 @@ async def create_conversation(property_id: str, current_user=Depends(get_current
         return {
             "id": str(conversation["_id"]),
             "property_id": property_id,
-            "user_id": str(current_user.id),
+            "user_id": str(current_user["id"]),
             "owner_id": str(property["owner_id"]),
             "created_at": conversation["created_at"],
         }
@@ -245,7 +245,7 @@ async def mark_messages_as_read(
 ):
     # Mark messages as read
     await message_collection.update_many(
-        {"conversation_id": conversation_id, "receiver_id": str(current_user.id)},
+        {"conversation_id": conversation_id, "receiver_id": str(current_user["id"])},
         {"$set": {"read": True}},
     )
     
@@ -273,7 +273,7 @@ async def delete_conversation(
     if not conversation:
         raise HTTPException(status_code=404, detail="Conversation not found")
 
-    if str(current_user.id) not in [conversation["user_id"], conversation["owner_id"]]:
+    if str(current_user["id"]) not in [conversation["user_id"], conversation["owner_id"]]:
         raise HTTPException(status_code=403, detail="Not authorized")
 
     # Delete all messages in the conversation
@@ -318,7 +318,7 @@ async def delete_message(
             )
             
         # Check if user is the sender
-        if str(message["sender_id"]) != str(current_user.id):
+        if str(message["sender_id"]) != str(current_user["id"]):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="You can only delete your own messages"

@@ -1,8 +1,11 @@
-from fastapi import FastAPI, status  # type: ignore
+from fastapi import FastAPI, status, Request  # type: ignore
 from fastapi.middleware.cors import CORSMiddleware  # type: ignore
 from fastapi.routing import APIRoute
 from fastapi.responses import RedirectResponse
 import uvicorn
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 
 # from app.scripts.seed_locations import seed_locations
 from app.core.database import create_indexes
@@ -23,11 +26,18 @@ def custom_generate_unique_id(route: APIRoute) -> str:
 # Setup logging
 setup_logging(level="INFO", log_file="logs/houzdey.log")
 
+# Initialize rate limiter
+limiter = Limiter(key_func=get_remote_address)
+
 app = FastAPI(
     title=settings.PROJECT_NAME,
     docs_url="/api/docs",
     version="/api/v1",
 )
+
+# Add rate limiter to app state
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # Register error handlers
 register_error_handlers(app)

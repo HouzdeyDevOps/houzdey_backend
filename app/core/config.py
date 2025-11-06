@@ -25,7 +25,8 @@ class Settings(BaseSettings):
     # API Settings
     API_V1_STR: str = "/api/v1"
     SECRET_KEY: str
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 8
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 15  # 15 minutes for security
+    REFRESH_TOKEN_EXPIRE_DAYS: int = 7  # 7 days
     
     # MongoDB Settings
     MONGO_URL: str
