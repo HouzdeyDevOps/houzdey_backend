@@ -12,8 +12,8 @@ from app.core.database import (
     property_collection
 )
 from app.core.config import settings
-from app.crud.user import get_user
-from app.services.notification_service import notification_service
+from app.services.user_service import UserService
+from app.services.notification_service import NotificationService
 from app.models.notifications import NotificationEvent
 
 logger = logging.getLogger(__name__)

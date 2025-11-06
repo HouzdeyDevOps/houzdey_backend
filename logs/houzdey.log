@@ -1,0 +1,2 @@
+2025-09-13 11:40:23,881 - app.core.error_handlers - WARNING - HTTP exception: Not Found - Status: 404 - Path: /docs - Method: GET (error_handlers.py:74)
+2025-09-13 11:40:23,931 - app.core.error_handlers - WARNING - HTTP exception: Not Found - Status: 404 - Path: /favicon.ico - Method: GET (error_handlers.py:74)
