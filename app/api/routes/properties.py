@@ -108,7 +108,7 @@ async def create_property(
     lga: str = Form(...),
     ward: str = Form(...),
     estate: str = Form(None),
-    size: str = Form(...),
+    size: str = Form(None),
     images: List[UploadFile] = File(...),
     video: Optional[UploadFile] = File(None),
     current_user: dict = Depends(get_current_user),
