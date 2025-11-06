@@ -58,6 +58,40 @@ async def verify_user_email(
         )
 
 
+@router.post("/verify-code")
+async def verify_code(
+    user_verify: UserVerify,
+    user_service: UserService = Depends(get_user_service)
+):
+    """Verify user email with verification code (alias endpoint)."""
+    try:
+        result = await user_service.verify_email(user_verify.email, user_verify.code)
+        return result
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+
+
+@router.post("/resend-code")
+@limiter.limit("3/minute")
+async def resend_verification_code(
+    request: Request,
+    email: str = Query(..., description="Email address to resend verification code to"),
+    user_service: UserService = Depends(get_user_service)
+):
+    """Resend verification code to user's email."""
+    try:
+        result = await user_service.resend_verification_code(email)
+        return result
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+
+
 @router.post("/login")
 @limiter.limit("10/minute")
 async def login_user(

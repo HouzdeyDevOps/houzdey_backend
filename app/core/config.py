@@ -90,7 +90,7 @@ class Settings(BaseSettings):
     DESCRIPTION: str = "Houzdey APIs"
 
     # Company branding
-    COMPANY_LOGO_URL: str = os.getenv("COMPANY_LOGO_URL", "https://your-company-logo-url.com/logo.png")
+    COMPANY_LOGO_URL: str = os.getenv("COMPANY_LOGO_URL", "https://res.cloudinary.com/disbboeb4/image/upload/v1762463832/houzdey-logo_aqofgf.png")
     
     # Social media links
     FACEBOOK_URL: str = os.getenv("FACEBOOK_URL", "https://facebook.com/your-company")

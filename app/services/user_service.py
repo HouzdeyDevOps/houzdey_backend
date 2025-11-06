@@ -6,6 +6,8 @@ from app.repositories.user_repository import UserRepository
 from app.models.user import UserStatus, UserRole, UserCreate
 from app.core.exceptions import ValidationError, NotFoundError, ConflictError, AuthenticationError
 from app.core.security import get_password_hash, verify_password
+from app.core.config import settings
+from app.utils.email import send_verification_code
 
 
 class UserService(BaseService):
@@ -49,6 +51,17 @@ class UserService(BaseService):
         
         # Create user
         user = await self.user_repo.create(user_data)
+        
+        # Send verification email
+        try:
+            await send_verification_code(
+                email_to=user_data["email"],
+                code=verification_code,
+                purpose="verification"
+            )
+            print(f"Verification code sent successfully to {user_data['email']}")
+        except Exception as e:
+            print(f"Failed to send verification email to {user_data['email']}: {str(e)}")
         
         # Remove sensitive information before returning
         user.pop("password", None)
@@ -141,43 +154,91 @@ class UserService(BaseService):
         return await self.get_user_by_id(user_id)
     
     async def verify_email(self, email: str, verification_code: str) -> Dict[str, Any]:
-        """Verify user email with verification code"""
+        """Verify user email with verification code OR password reset code"""
         user = await self.user_repo.find_by_email(email)
         if not user:
             raise NotFoundError("User not found")
         
-        # Check verification code
-        if user.get("verification_code") != verification_code:
+        # Check if this is a password reset code or email verification code
+        is_reset_code = user.get("reset_code") == verification_code
+        is_verification_code = user.get("verification_code") == verification_code
+        
+        if not is_reset_code and not is_verification_code:
             raise ValidationError("Invalid verification code")
         
-        # Check if code is expired
-        if user.get("code_expiry") and user["code_expiry"] < datetime.utcnow():
-            raise ValidationError("Verification code has expired")
+        # If it's a reset code, just verify it's valid and not expired
+        if is_reset_code:
+            if user.get("reset_code_expiry") and user["reset_code_expiry"] < datetime.utcnow():
+                raise ValidationError("Reset code has expired")
+            return {"message": "Reset code verified successfully"}
         
-        # Update user verification status
-        success = await self.user_repo.update_email_verification(user["id"], verified=True)
-        if not success:
-            raise ValidationError("Email verification failed")
+        # If it's an email verification code, verify and activate account
+        if is_verification_code:
+            # Check if code is expired
+            if user.get("code_expiry") and user["code_expiry"] < datetime.utcnow():
+                raise ValidationError("Verification code has expired")
+            
+            # Update user verification status
+            success = await self.user_repo.update_email_verification(user["id"], verified=True)
+            if not success:
+                raise ValidationError("Email verification failed")
+            
+            # If this is the first verification, activate the account
+            if user["status"] == UserStatus.PENDING.value:
+                await self.user_repo.update_by_id(user["id"], {
+                    "status": UserStatus.VERIFIED.value,
+                    "is_active": True
+                })
+            
+            return {"message": "Email verified successfully"}
         
-        # If this is the first verification, activate the account
-        if user["status"] == UserStatus.PENDING.value:
-            await self.user_repo.update_by_id(user["id"], {
-                "status": UserStatus.VERIFIED.value,
-                "is_active": True
-            })
+        raise ValidationError("Invalid verification code")
+    
+    async def resend_verification_code(self, email: str) -> Dict[str, str]:
+        """Resend verification code to user's email"""
+        user = await self.user_repo.find_by_email(email)
+        if not user:
+            # Don't reveal if user exists or not for security
+            return {"message": "If the email exists, a new verification code has been sent"}
         
-        return {"message": "Email verified successfully"}
+        # Check if already verified
+        if user.get("email_verified"):
+            raise ValidationError("Email is already verified")
+        
+        # Generate new verification code
+        new_code = self.generate_verification_code()
+        code_expiry = datetime.utcnow() + timedelta(hours=24)
+        
+        # Update user with new code
+        await self.user_repo.update_by_id(user["id"], {
+            "verification_code": new_code,
+            "code_expiry": code_expiry,
+            "updated_at": datetime.utcnow()
+        })
+        
+        # Send verification email
+        try:
+            await send_verification_code(
+                email_to=email,
+                code=new_code,
+                purpose="verification"
+            )
+            print(f"Verification code resent successfully to {email}")
+        except Exception as e:
+            print(f"Failed to send verification email to {email}: {str(e)}")
+        
+        return {"message": "Verification code has been resent"}
     
     async def request_password_reset(self, email: str) -> Dict[str, str]:
-        """Request password reset"""
+        """Request password reset - sends verification code via email"""
         user = await self.user_repo.find_by_email(email)
         if not user:
             # Don't reveal if user exists or not
             return {"message": "If the email exists, a reset code has been sent"}
         
-        # Generate reset code
+        # Generate 6-digit reset code
         reset_code = self.generate_verification_code()
-        reset_expiry = datetime.utcnow() + timedelta(hours=1)  # 1 hour expiry
+        reset_expiry = datetime.utcnow() + timedelta(minutes=settings.EMAIL_RESET_PASSWORD_EXPIRE_MINUTES)
         
         # Update user with reset code
         await self.user_repo.update_by_id(user["id"], {
@@ -186,8 +247,17 @@ class UserService(BaseService):
             "updated_at": datetime.utcnow()
         })
         
-        # Here you would typically send an email with the reset code
-        # await self.email_service.send_password_reset_email(email, reset_code)
+        # Send password reset email with verification code
+        try:
+            await send_verification_code(
+                email_to=email,
+                code=reset_code,
+                purpose="reset"
+            )
+            print(f"Password reset code sent successfully to {email}")
+        except Exception as e:
+            # Log the error but don't reveal it to the user
+            print(f"Failed to send password reset email to {email}: {str(e)}")
         
         return {"message": "If the email exists, a reset code has been sent"}
     
