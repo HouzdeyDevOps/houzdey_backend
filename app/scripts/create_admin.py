@@ -13,11 +13,12 @@ import getpass
 backend_dir = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(backend_dir))
 
-from app.core.database import user_collection
+from app.core.database import db_manager
 from app.models.user import UserRole, UserStatus
 from app.core.security import get_password_hash
 
 async def check_users():
+    user_collection = db_manager.get_collection("users")
     """Check current users and their roles"""
     print("Current User Status:")
     print("=" * 50)

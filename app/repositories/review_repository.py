@@ -1,13 +1,13 @@
 from typing import Dict, List, Optional, Any
 from app.repositories.base import BaseRepository
-from app.core.database import review_collection, review_summary_collection
+from app.core.database import db_manager
 
 
 class ReviewRepository(BaseRepository):
     """Repository for review data access operations"""
     
     def __init__(self):
-        super().__init__(review_collection)
+        super().__init__(db_manager.get_collection("reviews"))
     
     async def find_by_property_id(self, property_id: str) -> List[Dict[str, Any]]:
         """Find all reviews for a specific property"""
@@ -70,7 +70,7 @@ class ReviewSummaryRepository(BaseRepository):
     """Repository for review summary data access operations"""
     
     def __init__(self):
-        super().__init__(review_summary_collection)
+        super().__init__(db_manager.get_collection("review_summaries"))
     
     async def find_by_user_id(self, user_id: str) -> Optional[Dict[str, Any]]:
         """Find review summary for a specific user"""

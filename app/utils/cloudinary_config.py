@@ -9,11 +9,30 @@ cloudinary.config(
     api_secret=settings.CLOUDINARY_API_SECRET
 )
 
+# Project-specific folder prefix to organize files across multiple projects
+PROJECT_PREFIX = "houzdey"  # Change this to your project identifier
+
 async def upload_image_to_cloudinary(file_content: bytes, folder: str) -> str:
-    """Upload image to Cloudinary and return the URL"""
+    """
+    Upload image to Cloudinary in a project-specific folder structure
+    
+    Args:
+        file_content: Image bytes
+        folder: Subfolder name (e.g., 'profile_pictures', 'properties')
+    
+    Returns:
+        Secure HTTPS URL of uploaded image
+    
+    Example folder structure in Cloudinary:
+        houzdey/profile_pictures/abc123.jpg
+        houzdey/properties/xyz789.jpg
+    """
+    # Prefix folder with project name for organization
+    organized_folder = f"{PROJECT_PREFIX}/{folder}"
+    
     result = cloudinary.uploader.upload(
         file_content,
-        folder=folder
+        folder=organized_folder
     )
     return result['secure_url']
 

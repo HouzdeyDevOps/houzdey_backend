@@ -5,11 +5,13 @@ Script to optimize chat database indexes for better performance
 
 import asyncio
 import pymongo
-from app.core.database import message_collection, conversation_collection
+from app.core.database import db_manager
 
 
 async def create_chat_indexes():
     """Create optimized indexes for chat collections"""
+    message_collection = db_manager.get_collection("messages")
+    conversation_collection = db_manager.get_collection("conversations")
     
     print("Creating message collection indexes...")
     

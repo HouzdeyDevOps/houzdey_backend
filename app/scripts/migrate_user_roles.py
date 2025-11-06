@@ -13,11 +13,14 @@ from datetime import datetime
 backend_dir = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(backend_dir))
 
-from app.core.database import user_collection
+from app.core.database import db_manager
 from app.models.user import UserRole
 
 async def migrate_user_roles():
     """
+    Migrate existing users to have the new USER role
+    """
+    user_collection = db_manager.get_collection("users")
     Migrate existing users to include role field.
     - Sets role to 'user' for all existing users without role field
     - Optionally sets first user as super_admin

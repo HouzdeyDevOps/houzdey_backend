@@ -1,7 +1,7 @@
 from typing import Dict, List, Optional, Any
 from datetime import datetime
 from app.repositories.base import BaseRepository
-from app.core.database import user_collection
+from app.core.database import db_manager
 from app.models.user import UserStatus, UserRole
 
 
@@ -9,7 +9,7 @@ class UserRepository(BaseRepository):
     """Repository for user data access operations"""
     
     def __init__(self):
-        super().__init__(user_collection)
+        super().__init__(db_manager.get_collection("users"))
     
     async def find_by_email(self, email: str) -> Optional[Dict[str, Any]]:
         """Find user by email address"""

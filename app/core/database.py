@@ -1,46 +1,17 @@
-from motor.motor_asyncio import AsyncIOMotorClient
-from typing import Annotated
+"""
+IMPROVED DATABASE MODULE - Production Best Practices
+This is a better approach for production use
+"""
+
+from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase
+from typing import Annotated, Optional
 import bson
 from pydantic import BeforeValidator
 from app.core.config import settings
 from pymongo import IndexModel, ASCENDING, DESCENDING, TEXT
+import logging
 
-def get_db_client():
-    client = AsyncIOMotorClient(settings.MONGO_URL)
-    return client
-
-# Get a single database
-houzdey_database = get_db_client().Houzdey
-
-def get_collection(collection_name: str):
-    """Get a collection from the database by name"""
-    return houzdey_database[collection_name]
-
-# Create collections within the single database
-user_collection = houzdey_database.users
-property_collection = houzdey_database.properties
-review_collection = houzdey_database.reviews
-review_summary_collection = houzdey_database.review_summaries
-# wishlist_collection = houzdey_database.wishlists
-message_collection = houzdey_database.messages
-conversation_collection = houzdey_database.conversations
-
-# Admin collections
-admin_actions_collection = houzdey_database.admin_actions
-system_settings_collection = houzdey_database.system_settings
-reports_collection = houzdey_database.reports
-notification_templates_collection = houzdey_database.notification_templates
-
-# Analytics collections
-property_views_collection = houzdey_database.property_views
-property_inquiries_collection = houzdey_database.property_inquiries
-analytics_cache_collection = houzdey_database.analytics_cache
-
-# Notification collections
-notifications_collection = houzdey_database.notifications
-notification_preferences_collection = houzdey_database.notification_preferences
-notification_queue_collection = houzdey_database.notification_queue
-notification_batches_collection = houzdey_database.notification_batches
+logger = logging.getLogger(__name__)
 
 # Custom types for MongoDB ObjectId handling
 PyObjectId = Annotated[str, BeforeValidator(str)]
@@ -49,7 +20,111 @@ ObjectId = Annotated[
     BeforeValidator(lambda x: bson.ObjectId(x) if isinstance(x, str) else x),
 ]
 
+
+class DatabaseManager:
+    """
+    Singleton database manager with proper connection pooling
+    """
+    _instance: Optional['DatabaseManager'] = None
+    _client: Optional[AsyncIOMotorClient] = None
+    _database: Optional[AsyncIOMotorDatabase] = None
+    
+    def __new__(cls):
+        if cls._instance is None:
+            cls._instance = super(DatabaseManager, cls).__new__(cls)
+        return cls._instance
+    
+    def initialize(self):
+        """Initialize database connection"""
+        if self._client is None:
+            try:
+                self._client = AsyncIOMotorClient(
+                    settings.MONGO_URL,
+                    maxPoolSize=50,  # Connection pool size
+                    minPoolSize=10,
+                    serverSelectionTimeoutMS=5000,
+                    connectTimeoutMS=10000,
+                )
+                self._database = self._client.Houzdey
+                logger.info("Database connection initialized successfully")
+            except Exception as e:
+                logger.error(f"Failed to connect to database: {str(e)}")
+                raise
+    
+    @property
+    def database(self) -> AsyncIOMotorDatabase:
+        """Get database instance"""
+        if self._database is None:
+            self.initialize()
+        return self._database
+    
+    def get_collection(self, collection_name: str):
+        """Get a collection from the database by name"""
+        return self.database[collection_name]
+    
+    async def close(self):
+        """Close database connection"""
+        if self._client:
+            self._client.close()
+            self._client = None
+            self._database = None
+            logger.info("Database connection closed")
+    
+    async def ping(self) -> bool:
+        """Check if database is accessible"""
+        try:
+            await self._client.admin.command('ping')
+            return True
+        except Exception as e:
+            logger.error(f"Database ping failed: {str(e)}")
+            return False
+
+
+# Singleton instance
+db_manager = DatabaseManager()
+
+
+# Dependency for FastAPI
+def get_database() -> AsyncIOMotorDatabase:
+    """Dependency to get database instance"""
+    return db_manager.database
+
+
+def get_collection(collection_name: str):
+    """Helper function to get collection"""
+    return db_manager.get_collection(collection_name)
+
+
+# Collection references - using singleton manager for proper connection pooling
+user_collection = db_manager.get_collection("users")
+property_collection = db_manager.get_collection("properties")
+review_collection = db_manager.get_collection("reviews")
+review_summary_collection = db_manager.get_collection("review_summaries")
+message_collection = db_manager.get_collection("messages")
+conversation_collection = db_manager.get_collection("conversations")
+
+# Admin collections
+admin_actions_collection = db_manager.get_collection("admin_actions")
+system_settings_collection = db_manager.get_collection("system_settings")
+reports_collection = db_manager.get_collection("reports")
+notification_templates_collection = db_manager.get_collection("notification_templates")
+
+# Analytics collections
+property_views_collection = db_manager.get_collection("property_views")
+property_inquiries_collection = db_manager.get_collection("property_inquiries")
+analytics_cache_collection = db_manager.get_collection("analytics_cache")
+
+# Notification collections
+notifications_collection = db_manager.get_collection("notifications")
+notification_preferences_collection = db_manager.get_collection("notification_preferences")
+notification_queue_collection = db_manager.get_collection("notification_queue")
+notification_batches_collection = db_manager.get_collection("notification_batches")
+
+
 async def create_indexes():
+    """Create all database indexes"""
+    database = db_manager.database
+    
     # Property Indexes
     property_indexes = [
         IndexModel([("owner_id", ASCENDING)], background=True),
@@ -66,7 +141,7 @@ async def create_indexes():
         ], name="property_search_index", background=True)
     ]
     
-    # Review Indexes (User-to-User Reviews)
+    # Review Indexes
     review_indexes = [
         IndexModel([("reviewed_user_id", ASCENDING)], background=True),
         IndexModel([("reviewer_id", ASCENDING)], background=True),
@@ -76,7 +151,7 @@ async def create_indexes():
         IndexModel([("status", ASCENDING)], background=True),
         IndexModel([("is_verified", ASCENDING)], background=True),
         IndexModel([("interaction_type", ASCENDING)], background=True),
-        IndexModel([("property_id", ASCENDING)], background=True)  # For property-related reviews
+        IndexModel([("property_id", ASCENDING)], background=True)
     ]
     
     # Review Summary Indexes
@@ -139,17 +214,20 @@ async def create_indexes():
         IndexModel([("token_type", ASCENDING)], background=True)
     ]
 
-    # Create all indexes
-    await property_collection.create_indexes(property_indexes)
-    await review_collection.create_indexes(review_indexes)
-    await review_summary_collection.create_indexes(review_summary_indexes)
-    await user_collection.create_indexes(user_indexes)
-    await admin_actions_collection.create_indexes(admin_action_indexes)
-    await reports_collection.create_indexes(reports_indexes)
-    await property_views_collection.create_indexes(analytics_indexes)
-    await property_inquiries_collection.create_indexes(analytics_indexes)
-    await notifications_collection.create_indexes(notification_indexes)
-    
-    # Create token blacklist collection indexes
-    blacklisted_tokens_collection = houzdey_database.blacklisted_tokens
-    await blacklisted_tokens_collection.create_indexes(token_blacklist_indexes)
+    try:
+        # Create all indexes
+        await database.properties.create_indexes(property_indexes)
+        await database.reviews.create_indexes(review_indexes)
+        await database.review_summaries.create_indexes(review_summary_indexes)
+        await database.users.create_indexes(user_indexes)
+        await database.admin_actions.create_indexes(admin_action_indexes)
+        await database.reports.create_indexes(reports_indexes)
+        await database.property_views.create_indexes(analytics_indexes)
+        await database.property_inquiries.create_indexes(analytics_indexes)
+        await database.notifications.create_indexes(notification_indexes)
+        await database.blacklisted_tokens.create_indexes(token_blacklist_indexes)
+        
+        logger.info("All database indexes created successfully")
+    except Exception as e:
+        logger.error(f"Error creating indexes: {str(e)}")
+        raise

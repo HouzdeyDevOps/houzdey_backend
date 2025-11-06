@@ -7,7 +7,7 @@ Run this from the backend directory: python run_migration.py
 import asyncio
 import sys
 from datetime import datetime
-from app.core.database import property_collection
+from app.core.database import db_manager
 
 async def migrate_existing_properties():
     """
@@ -16,6 +16,7 @@ async def migrate_existing_properties():
     - Copies existing 'price' to 'rental_price'
     - Sets 'sale_price' to None
     """
+    property_collection = db_manager.get_collection("properties")
     print("Starting migration of existing properties...")
     
     # Find all properties without listing_type field

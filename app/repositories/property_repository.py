@@ -1,7 +1,7 @@
 from typing import Dict, List, Optional, Any
 from pymongo import ASCENDING, DESCENDING
 from app.repositories.base import BaseRepository
-from app.core.database import property_collection
+from app.core.database import db_manager
 from app.models.property import SortBy, SortOrder
 
 
@@ -9,7 +9,7 @@ class PropertyRepository(BaseRepository):
     """Repository for property data access operations"""
     
     def __init__(self):
-        super().__init__(property_collection)
+        super().__init__(db_manager.get_collection("properties"))
     
     async def find_by_owner_id(self, owner_id: str) -> List[Dict[str, Any]]:
         """Find all properties by owner ID"""

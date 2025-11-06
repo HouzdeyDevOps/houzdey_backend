@@ -5,11 +5,12 @@ Migration script to add chat status fields to existing users
 
 import asyncio
 from datetime import datetime, timezone
-from app.core.database import user_collection
+from app.core.database import db_manager
 
 
 async def add_chat_status_fields():
     """Add chat_status and last_seen fields to existing users"""
+    user_collection = db_manager.get_collection("users")
     
     print("Adding chat status fields to existing users...")
     

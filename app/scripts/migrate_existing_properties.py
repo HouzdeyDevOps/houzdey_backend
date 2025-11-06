@@ -13,11 +13,13 @@ from datetime import datetime
 backend_dir = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(backend_dir))
 
-from app.core.database import property_collection
+from app.core.database import db_manager
 
 async def migrate_existing_properties():
     """
     Migrate existing properties to include listing_type and separate pricing fields.
+    """
+    property_collection = db_manager.get_collection("properties")
     - Sets listing_type to 'rent' for all existing properties
     - Copies existing 'price' to 'rental_price'
     - Sets 'sale_price' to None

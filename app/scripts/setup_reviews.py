@@ -7,11 +7,16 @@ This script creates necessary collections and indexes for user-to-user reviews.
 import asyncio
 import logging
 from datetime import datetime
-from app.core.database import review_collection, review_summary_collection
+from app.core.database import db_manager
 from app.models.review import ReviewSentiment, ReviewStatus, ReviewCategory
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+async def setup_review_collections():
+    """Setup review collections with indexes"""
+    review_collection = db_manager.get_collection("reviews")
+    review_summary_collection = db_manager.get_collection("review_summaries")
 
 async def create_review_indexes():
     """Create indexes for review collections"""

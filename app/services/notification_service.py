@@ -4,7 +4,7 @@ from enum import Enum
 
 from app.services.base_service import BaseService
 from app.repositories.base import BaseRepository
-from app.core.database import notifications_collection, notification_preferences_collection
+from app.core.database import db_manager
 from app.core.exceptions import ValidationError, NotFoundError, BusinessLogicError
 
 
@@ -18,6 +18,8 @@ class NotificationService(BaseService):
     """Service for notification-related business logic"""
     
     def __init__(self):
+        self.notifications_collection = db_manager.get_collection("notifications")
+        self.notification_preferences_collection = db_manager.get_collection("notification_preferences")
         super().__init__()
     
     async def create_notification(self, user_id: str, title: str, message: str) -> Dict[str, Any]:

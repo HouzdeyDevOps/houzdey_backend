@@ -1,10 +1,10 @@
 from typing import List
 from fastapi import HTTPException
-from ..core.database import houzdey_database
+from ..core.database import db_manager
 
 class LocationService:
     def __init__(self):
-        self.states_collection = houzdey_database.states
+        self.states_collection = db_manager.get_collection("states")
 
     async def get_states(self) -> List[str]:
         try:
