@@ -31,6 +31,4 @@ class NotificationService(BaseService):
             "status": "unread",
             "created_at": datetime.utcnow()
         }
-        
-        self.logger.info(f"Notification created for user {user_id}: {title}")
         return notification_data
