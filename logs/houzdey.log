@@ -1973,3 +1973,6 @@ AttributeError: 'dict' object has no attribute 'id'
 2025-11-07 18:51:51,839 - app.core.database - INFO - All database indexes created successfully (database.py:247)
 2025-11-07 18:51:55,576 - app.api.routes.blog - INFO - Blog post updated: 690e2d14621d70c1fc78ef3a by admin 67b37d4684be06d3f9b8bdd8 (blog.py:367)
 2025-11-07 19:15:17,460 - app.core.error_handlers - WARNING - HTTP exception: Could not validate credentials - Status: 403 - Path: /api/v1/blog/690e2d14621d70c1fc78ef3a - Method: GET (error_handlers.py:74)
+2025-11-07 20:21:07,142 - app.core.error_handlers - WARNING - Validation error: [{'type': 'less_than_equal', 'loc': ('query', 'limit'), 'msg': 'Input should be less than or equal to 50', 'input': '500', 'ctx': {'le': 50}}] - Path: /api/v1/blog/ - Method: GET (error_handlers.py:44)
+2025-11-07 21:15:27,210 - app.core.error_handlers - WARNING - Validation error: [{'type': 'less_than_equal', 'loc': ('query', 'limit'), 'msg': 'Input should be less than or equal to 50', 'input': '500', 'ctx': {'le': 50}}] - Path: /api/v1/blog/ - Method: GET (error_handlers.py:44)
+2025-11-07 21:41:50,587 - app.core.error_handlers - WARNING - Validation error: [{'type': 'less_than_equal', 'loc': ('query', 'limit'), 'msg': 'Input should be less than or equal to 50', 'input': '500', 'ctx': {'le': 50}}] - Path: /api/v1/blog/ - Method: GET (error_handlers.py:44)
