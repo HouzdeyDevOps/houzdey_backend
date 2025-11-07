@@ -33,14 +33,14 @@ router = APIRouter()
 # USER NOTIFICATION ROUTES
 
 @router.get("/preferences")
-async def get_notification_preferences(current_user: User = Depends(get_current_user)):
+async def get_notification_preferences(current_user: dict = Depends(get_current_user)):
     """Get user's notification preferences"""
     try:
-        prefs = await notification_preferences_collection.find_one({"user_id": str(current_user.id)})
+        prefs = await notification_preferences_collection.find_one({"user_id": str(current_user["id"])})
         
         if not prefs:
             # Create default preferences
-            default_prefs = NotificationPreference(user_id=str(current_user.id))
+            default_prefs = NotificationPreference(user_id=str(current_user["id"]))
             await notification_preferences_collection.insert_one(default_prefs.model_dump())
             return default_prefs
         
@@ -54,16 +54,16 @@ async def get_notification_preferences(current_user: User = Depends(get_current_
 @router.put("/preferences")
 async def update_notification_preferences(
     preferences: NotificationPreference,
-    current_user: User = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user)
 ):
     """Update user's notification preferences"""
     try:
-        preferences.user_id = str(current_user.id)
+        preferences.user_id = str(current_user["id"])
         preferences.updated_at = datetime.utcnow()
         
         # Update or insert preferences
         await notification_preferences_collection.update_one(
-            {"user_id": str(current_user.id)},
+            {"user_id": str(current_user["id"])},
             {"$set": preferences.model_dump()},
             upsert=True
         )
@@ -77,7 +77,7 @@ async def update_notification_preferences(
 async def get_user_notifications(
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=100),
-    current_user: User = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user)
 ):
     """Get user's notifications"""
     try:
@@ -85,13 +85,13 @@ async def get_user_notifications(
         
         # Get notifications
         notifications = []
-        async for notif in notifications_collection.find({"user_id": str(current_user.id)}).skip(skip).limit(limit).sort("created_at", -1):
+        async for notif in notifications_collection.find({"user_id": str(current_user["id"])}).skip(skip).limit(limit).sort("created_at", -1):
             notif["id"] = str(notif["_id"])
             del notif["_id"]
             notifications.append(notif)
         
         # Get total count
-        total_count = await notifications_collection.count_documents({"user_id": str(current_user.id)})
+        total_count = await notifications_collection.count_documents({"user_id": str(current_user["id"])})
         
         return {
             "notifications": notifications,
@@ -109,14 +109,14 @@ async def get_user_notifications(
 @router.post("/mark-read/{notification_id}")
 async def mark_notification_as_read(
     notification_id: str,
-    current_user: User = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user)
 ):
     """Mark a notification as read"""
     try:
         # Verify notification belongs to user
         notification = await notifications_collection.find_one({
             "_id": ObjectId(notification_id),
-            "user_id": str(current_user.id)
+            "user_id": str(current_user["id"])
         })
         
         if not notification:
@@ -142,12 +142,12 @@ async def mark_notification_as_read(
         raise HTTPException(status_code=500, detail="Failed to mark notification as read")
 
 @router.post("/mark-all-read")
-async def mark_all_notifications_as_read(current_user: User = Depends(get_current_user)):
+async def mark_all_notifications_as_read(current_user: dict = Depends(get_current_user)):
     """Mark all user notifications as read"""
     try:
         result = await notifications_collection.update_many(
             {
-                "user_id": str(current_user.id),
+                "user_id": str(current_user["id"]),
                 "opened_at": {"$exists": False}
             },
             {
@@ -165,11 +165,11 @@ async def mark_all_notifications_as_read(current_user: User = Depends(get_curren
         raise HTTPException(status_code=500, detail="Failed to mark notifications as read")
 
 @router.get("/unread-count")
-async def get_unread_notification_count(current_user: User = Depends(get_current_user)):
+async def get_unread_notification_count(current_user: dict = Depends(get_current_user)):
     """Get count of unread notifications"""
     try:
         count = await notifications_collection.count_documents({
-            "user_id": str(current_user.id),
+            "user_id": str(current_user["id"]),
             "opened_at": {"$exists": False}
         })
         
@@ -275,7 +275,8 @@ async def send_notification_to_user(
     event: NotificationEvent = Body(...),
     context_data: Dict[str, Any] = Body(default={}),
     priority: int = Body(default=1),
-    scheduled_for: Optional[datetime] = Body(default=None)
+    scheduled_for: Optional[datetime] = Body(default=None),
+    notification_service: NotificationService = Depends(get_notification_service)
 ):
     """Send a notification to a specific user (admin only)"""
     try:
@@ -304,7 +305,8 @@ async def broadcast_notification(
     context_data: Dict[str, Any] = Body(default={}),
     user_filters: Dict[str, Any] = Body(default={}),
     priority: int = Body(default=1),
-    scheduled_for: Optional[datetime] = Body(default=None)
+    scheduled_for: Optional[datetime] = Body(default=None),
+    notification_service: NotificationService = Depends(get_notification_service)
 ):
     """Send a notification to multiple users (admin only)"""
     try:
