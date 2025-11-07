@@ -112,6 +112,7 @@ async def create_property(
     ward: str = Form(...),
     estate: str = Form(None),
     size: str = Form(None),
+    property_status: str = Form(default="available", alias="status"),
     images: List[UploadFile] = File(...),
     video: Optional[UploadFile] = File(None),
     current_user: dict = Depends(get_current_user),
@@ -166,7 +167,8 @@ async def create_property(
             "lga": lga,
             "ward": ward,
             "estate": estate,
-            "size": size
+            "size": size,
+            "status": property_status
         }
         
         # Create property using service
@@ -207,6 +209,7 @@ async def update_property(
     ward: Optional[str] = Form(None),
     estate: Optional[str] = Form(None),
     size: Optional[str] = Form(None),
+    property_status: Optional[str] = Form(None, alias="status"),
     images: Optional[List[UploadFile]] = File(None),
     video: Optional[UploadFile] = File(None),
     current_user: dict = Depends(get_current_user),
@@ -259,6 +262,8 @@ async def update_property(
             update_data["estate"] = estate
         if size is not None:
             update_data["size"] = size
+        if property_status is not None:
+            update_data["status"] = property_status
             
         # Parse amenities if provided
         if amenities is not None:
