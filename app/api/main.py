@@ -11,6 +11,7 @@ from app.api.routes.analytics import router as analytics_router
 from app.api.routes.notifications import router as notifications_router
 from app.api.routes.reviews_router import router as reviews_router
 from app.api.routes.support import router as support_router
+from app.api.routes.blog import router as blog_router
 
 
 # Create API router
@@ -29,6 +30,7 @@ api_router.include_router(analytics_router, prefix="/analytics", tags=["analytic
 api_router.include_router(notifications_router, prefix="/notifications", tags=["notifications"])
 api_router.include_router(reviews_router, prefix="/reviews", tags=["reviews"])
 api_router.include_router(support_router, prefix="/support", tags=["support"])
+api_router.include_router(blog_router, prefix="/blog", tags=["blog"])
 
 
 

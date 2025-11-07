@@ -1879,3 +1879,4 @@
 2025-11-07 17:41:55,597 - app.core.database - INFO - All database indexes created successfully (database.py:230)
 2025-11-07 17:42:13,033 - app.core.database - INFO - All database indexes created successfully (database.py:230)
 2025-11-07 17:42:56,407 - app.core.database - INFO - All database indexes created successfully (database.py:230)
+2025-11-07 17:51:45,505 - app.core.database - INFO - All database indexes created successfully (database.py:247)

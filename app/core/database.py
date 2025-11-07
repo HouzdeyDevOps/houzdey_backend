@@ -120,6 +120,9 @@ notification_preferences_collection = db_manager.get_collection("notification_pr
 notification_queue_collection = db_manager.get_collection("notification_queue")
 notification_batches_collection = db_manager.get_collection("notification_batches")
 
+# Blog collection
+blog_collection = db_manager.get_collection("blogs")
+
 
 async def create_indexes():
     """Create all database indexes"""
@@ -213,6 +216,19 @@ async def create_indexes():
         IndexModel([("expires_at", ASCENDING)], background=True, expireAfterSeconds=0),  # TTL index
         IndexModel([("token_type", ASCENDING)], background=True)
     ]
+    
+    # Blog Indexes
+    blog_indexes = [
+        IndexModel([("slug", ASCENDING)], unique=True, background=True),
+        IndexModel([("status", ASCENDING)], background=True),
+        IndexModel([("category", ASCENDING)], background=True),
+        IndexModel([("tags", ASCENDING)], background=True),
+        IndexModel([("author_id", ASCENDING)], background=True),
+        IndexModel([("published_at", DESCENDING)], background=True),
+        IndexModel([("views", DESCENDING)], background=True),
+        IndexModel([("created_at", DESCENDING)], background=True),
+        IndexModel([("title", TEXT), ("content", TEXT), ("excerpt", TEXT)], background=True)
+    ]
 
     try:
         # Create all indexes
@@ -226,6 +242,7 @@ async def create_indexes():
         await database.property_inquiries.create_indexes(analytics_indexes)
         await database.notifications.create_indexes(notification_indexes)
         await database.blacklisted_tokens.create_indexes(token_blacklist_indexes)
+        await database.blogs.create_indexes(blog_indexes)
         
         logger.info("All database indexes created successfully")
     except Exception as e:
