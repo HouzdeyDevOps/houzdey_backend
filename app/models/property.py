@@ -103,6 +103,7 @@ class PropertyUpdate(BaseModel):
     toilets: Optional[int]
     caution_fee: Optional[float]
     agency_fee: Optional[float]
+    legal_fee: Optional[float]
     other_fees: Optional[float]
     facilities: Optional[List[str]]
     listing_by: Optional[str]

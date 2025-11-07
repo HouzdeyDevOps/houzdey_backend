@@ -96,6 +96,9 @@ async def create_property(
     listing_type: str = Form(default="rent"),
     rental_price: Optional[float] = Form(None),
     sale_price: Optional[float] = Form(None),
+    agency_fee: Optional[float] = Form(None),
+    legal_fee: Optional[float] = Form(None),
+    other_fees: Optional[float] = Form(None),
     description: str = Form(...),
     amenities: str = Form(...),
     beds: int = Form(default=0),
@@ -146,6 +149,9 @@ async def create_property(
             "listing_type": listing_type,
             "rental_price": rental_price,
             "sale_price": sale_price,
+            "agency_fee": agency_fee,
+            "legal_fee": legal_fee,
+            "other_fees": other_fees,
             "description": description,
             "amenities": amenities_list,
             "images": image_urls,
@@ -176,25 +182,123 @@ async def create_property(
         )
 
 
-@router.put("/{property_id}", response_model=Property)
+@router.put("/{property_id}")
 async def update_property(
     property_id: str,
-    property_update: PropertyUpdate,
+    title: Optional[str] = Form(None),
+    type: Optional[str] = Form(None),
+    price: Optional[float] = Form(None),
+    listing_type: Optional[str] = Form(None),
+    rental_price: Optional[float] = Form(None),
+    sale_price: Optional[float] = Form(None),
+    agency_fee: Optional[float] = Form(None),
+    legal_fee: Optional[float] = Form(None),
+    other_fees: Optional[float] = Form(None),
+    description: Optional[str] = Form(None),
+    amenities: Optional[str] = Form(None),
+    beds: Optional[int] = Form(None),
+    baths: Optional[int] = Form(None),
+    toilets: Optional[int] = Form(None),
+    condition: Optional[str] = Form(None),
+    furnishing: Optional[str] = Form(None),
+    address: Optional[str] = Form(None),
+    state: Optional[str] = Form(None),
+    lga: Optional[str] = Form(None),
+    ward: Optional[str] = Form(None),
+    estate: Optional[str] = Form(None),
+    size: Optional[str] = Form(None),
+    images: Optional[List[UploadFile]] = File(None),
+    video: Optional[UploadFile] = File(None),
     current_user: dict = Depends(get_current_user),
     property_service: PropertyService = Depends(get_property_service)
 ):
     """Update a property"""
     try:
+        # Build update data only with provided fields
+        update_data = {}
+        
+        if title is not None:
+            update_data["title"] = title
+        if type is not None:
+            update_data["type"] = type
+        if price is not None:
+            update_data["price"] = price
+        if listing_type is not None:
+            update_data["listing_type"] = listing_type
+        if rental_price is not None:
+            update_data["rental_price"] = rental_price
+        if sale_price is not None:
+            update_data["sale_price"] = sale_price
+        if agency_fee is not None:
+            update_data["agency_fee"] = agency_fee
+        if legal_fee is not None:
+            update_data["legal_fee"] = legal_fee
+        if other_fees is not None:
+            update_data["other_fees"] = other_fees
+        if description is not None:
+            update_data["description"] = description
+        if beds is not None:
+            update_data["beds"] = beds
+        if baths is not None:
+            update_data["baths"] = baths
+        if toilets is not None:
+            update_data["toilets"] = toilets
+        if condition is not None:
+            update_data["condition"] = condition
+        if furnishing is not None:
+            update_data["furnishing"] = furnishing
+        if address is not None:
+            update_data["address"] = address
+        if state is not None:
+            update_data["state"] = state
+        if lga is not None:
+            update_data["lga"] = lga
+        if ward is not None:
+            update_data["ward"] = ward
+        if estate is not None:
+            update_data["estate"] = estate
+        if size is not None:
+            update_data["size"] = size
+            
+        # Parse amenities if provided
+        if amenities is not None:
+            try:
+                update_data["amenities"] = json.loads(amenities)
+            except json.JSONDecodeError:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Invalid amenities format"
+                )
+        
+        # Handle new images if provided
+        if images:
+            image_urls = []
+            for image in images:
+                contents = await image.read()
+                url = await upload_image_to_cloudinary(contents, "properties")
+                image_urls.append(url)
+            update_data["images"] = image_urls
+        
+        # Handle new video if provided
+        if video:
+            video_contents = await video.read()
+            video_url = await upload_video_to_cloudinary(video_contents, "properties")
+            update_data["video"] = video_url
+        
+        # Update property using service
         updated_property = await property_service.update_property(
             property_id, 
-            property_update.dict(exclude_unset=True), 
+            update_data, 
             current_user["id"]
         )
-        return Property(**updated_property)
+        return updated_property
+        
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=str(e)
+            detail=f"Failed to update property: {str(e)}"
         )
 
 
