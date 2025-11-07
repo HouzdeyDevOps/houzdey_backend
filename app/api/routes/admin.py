@@ -36,8 +36,8 @@ router = APIRouter()
 
 # Helper function to get admin ID from current_admin dict
 def get_admin_id(current_admin: dict) -> str:
-    """Extract admin ID from current_admin dict (which has _id key)"""
-    return str(current_admin["_id"])
+    """Extract admin ID from current_admin dict (handles both 'id' and '_id' keys)"""
+    return current_admin.get("id") or str(current_admin.get("_id"))
 
 # Helper function to log admin actions
 async def log_admin_action(admin_id: str, action_type: str, target_type: str, 
@@ -295,7 +295,7 @@ async def suspend_user(
         
         if result.modified_count > 0:
             await log_admin_action(
-                str(current_admin["_id"]), "SUSPEND", "user", user_id,
+                get_admin_id(current_admin), "SUSPEND", "user", user_id,
                 f"Suspended user {existing_user.get('email', 'unknown')}: {reason}"
             )
             return {"message": "User suspended successfully"}
@@ -332,7 +332,7 @@ async def activate_user(
         
         if result.modified_count > 0:
             await log_admin_action(
-                str(current_admin["_id"]), "ACTIVATE", "user", user_id,
+                get_admin_id(current_admin), "ACTIVATE", "user", user_id,
                 f"Activated user {existing_user.get('email', 'unknown')}"
             )
             return {"message": "User activated successfully"}
@@ -377,7 +377,7 @@ async def delete_user(
         
         if result.deleted_count > 0:
             await log_admin_action(
-                str(current_admin["_id"]), "DELETE", "user", user_id,
+                get_admin_id(current_admin), "DELETE", "user", user_id,
                 f"Deleted user {existing_user.get('email', 'unknown')}"
             )
             return {"message": "User deleted successfully"}
@@ -429,7 +429,7 @@ async def get_properties_admin(
             properties.append(prop)
         
         await log_admin_action(
-            str(current_admin["_id"]), "VIEW", "properties",
+            get_admin_id(current_admin), "VIEW", "properties",
             description="Viewed properties list"
         )
         
@@ -462,7 +462,7 @@ async def update_property_status_admin(
         
         if result.modified_count > 0:
             await log_admin_action(
-                str(current_admin["_id"]), "UPDATE", "property", property_id,
+                get_admin_id(current_admin), "UPDATE", "property", property_id,
                 f"Updated property status to {status}"
             )
             return {"message": "Property status updated successfully"}
@@ -505,7 +505,7 @@ async def delete_property_admin(
         
         if result.deleted_count > 0:
             await log_admin_action(
-                str(current_admin["_id"]), "DELETE", "property", property_id,
+                get_admin_id(current_admin), "DELETE", "property", property_id,
                 f"Deleted property {existing_property.get('title', 'unknown')}"
             )
             return {"message": "Property deleted successfully"}
@@ -553,7 +553,7 @@ async def update_system_settings(
         )
         
         await log_admin_action(
-            str(current_admin["_id"]), "UPDATE", "system_settings",
+            get_admin_id(current_admin), "UPDATE", "system_settings",
             description="Updated system settings"
         )
         

@@ -227,15 +227,18 @@ async def create_blog(
         if existing:
             raise HTTPException(status_code=400, detail="A blog post with this slug already exists")
         
+        # Get admin ID (handle both 'id' and '_id' keys)
+        admin_id = current_admin.get("id") or str(current_admin.get("_id"))
+        
         # Get author info
-        author_info = await get_author_info(str(current_admin["_id"]))
+        author_info = await get_author_info(admin_id)
         
         # Calculate reading time
         reading_time = calculate_reading_time(blog_data.content)
         
         # Prepare blog data
         blog_dict = blog_data.model_dump()
-        blog_dict["author_id"] = str(current_admin["_id"])
+        blog_dict["author_id"] = admin_id
         blog_dict["author_name"] = author_info["author_name"]
         blog_dict["author_email"] = author_info["author_email"]
         blog_dict["author_avatar"] = author_info["author_avatar"]
@@ -244,7 +247,7 @@ async def create_blog(
         # Create blog post
         new_blog = await blog_repo.create_blog(blog_dict)
         
-        logger.info(f"Blog post created: {new_blog['id']} by admin {current_admin['_id']}")
+        logger.info(f"Blog post created: {new_blog['id']} by admin {admin_id}")
         return new_blog
     except HTTPException:
         raise
@@ -360,7 +363,8 @@ async def update_blog(
         # Get updated blog
         updated_blog = await blog_repo.get_by_id(blog_id)
         
-        logger.info(f"Blog post updated: {blog_id} by admin {current_admin['_id']}")
+        admin_id = current_admin.get("id") or str(current_admin.get("_id"))
+        logger.info(f"Blog post updated: {blog_id} by admin {admin_id}")
         return updated_blog
     except HTTPException:
         raise
@@ -387,7 +391,8 @@ async def delete_blog(
         if not success:
             raise HTTPException(status_code=500, detail="Failed to delete blog post")
         
-        logger.info(f"Blog post deleted: {blog_id} by admin {current_admin['_id']}")
+        admin_id = current_admin.get("id") or str(current_admin.get("_id"))
+        logger.info(f"Blog post deleted: {blog_id} by admin {admin_id}")
         return {"message": "Blog post deleted successfully"}
     except HTTPException:
         raise

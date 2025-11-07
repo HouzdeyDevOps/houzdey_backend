@@ -15,7 +15,8 @@ class UploadService:
     async def upload_file(
         file: UploadFile,
         file_type: str,
-        user_id: str
+        user_id: str,
+        context: str = "chat"  # Can be 'chat', 'blog', 'profile', etc.
     ) -> str:
         try:
             # Validate file type
@@ -37,15 +38,17 @@ class UploadService:
             # Read file content
             contents = await file.read()
 
-            # Upload to Cloudinary
+            # Upload to Cloudinary with dynamic folder structure
+            folder_path = f"{context}/{file_type}/{user_id}" if context == "chat" else f"{context}/{file_type}"
+            
             upload_result = cloudinary.uploader.upload(
                 contents,
-                folder=f"chat/{file_type}/{user_id}",
+                folder=folder_path,
                 resource_type="auto",
                 public_id=None,  # Let Cloudinary generate a unique name
                 overwrite=False,
                 access_mode="public",
-                tags=[f"user_{user_id}", file_type, "chat"]
+                tags=[f"user_{user_id}", file_type, context]
             )
 
             # Return the secure URL

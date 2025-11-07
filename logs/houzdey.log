@@ -1880,3 +1880,96 @@
 2025-11-07 17:42:13,033 - app.core.database - INFO - All database indexes created successfully (database.py:230)
 2025-11-07 17:42:56,407 - app.core.database - INFO - All database indexes created successfully (database.py:230)
 2025-11-07 17:51:45,505 - app.core.database - INFO - All database indexes created successfully (database.py:247)
+2025-11-07 18:25:36,500 - app.api.routes.blog - ERROR - Error creating blog: '_id' (blog.py:252)
+2025-11-07 18:25:36,501 - app.core.error_handlers - WARNING - HTTP exception: Failed to create blog post - Status: 500 - Path: /api/v1/blog/ - Method: POST (error_handlers.py:74)
+2025-11-07 18:30:13,879 - app.api.routes.blog - ERROR - Error creating blog: '_id' (blog.py:252)
+2025-11-07 18:30:13,881 - app.core.error_handlers - WARNING - HTTP exception: Failed to create blog post - Status: 500 - Path: /api/v1/blog/ - Method: POST (error_handlers.py:74)
+2025-11-07 18:30:26,354 - app.core.database - INFO - All database indexes created successfully (database.py:247)
+2025-11-07 18:32:05,120 - app.api.routes.blog - INFO - Blog post created: 690e2d14621d70c1fc78ef3a by admin 67b37d4684be06d3f9b8bdd8 (blog.py:250)
+2025-11-07 18:35:27,530 - app.core.database - INFO - All database indexes created successfully (database.py:247)
+2025-11-07 18:37:02,135 - app.core.error_handlers - ERROR - Unexpected exception: 'dict' object has no attribute 'id' - Path: /api/v1/upload/ - Method: POST (error_handlers.py:93)
+Traceback (most recent call last):
+  File "C:\Users\ccharles\Desktop\Houzdey Projects\houzdey_web\backend\venv\Lib\site-packages\starlette\middleware\errors.py", line 164, in __call__
+    await self.app(scope, receive, _send)
+  File "C:\Users\ccharles\Desktop\Houzdey Projects\houzdey_web\backend\venv\Lib\site-packages\starlette\middleware\cors.py", line 93, in __call__
+    await self.simple_response(scope, receive, send, request_headers=headers)
+  File "C:\Users\ccharles\Desktop\Houzdey Projects\houzdey_web\backend\venv\Lib\site-packages\starlette\middleware\cors.py", line 148, in simple_response
+    await self.app(scope, receive, send)
+  File "C:\Users\ccharles\Desktop\Houzdey Projects\houzdey_web\backend\venv\Lib\site-packages\starlette\middleware\exceptions.py", line 65, in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+  File "C:\Users\ccharles\Desktop\Houzdey Projects\houzdey_web\backend\venv\Lib\site-packages\starlette\_exception_handler.py", line 64, in wrapped_app
+    raise exc
+  File "C:\Users\ccharles\Desktop\Houzdey Projects\houzdey_web\backend\venv\Lib\site-packages\starlette\_exception_handler.py", line 53, in wrapped_app
+    await app(scope, receive, sender)
+  File "C:\Users\ccharles\Desktop\Houzdey Projects\houzdey_web\backend\venv\Lib\site-packages\starlette\routing.py", line 756, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "C:\Users\ccharles\Desktop\Houzdey Projects\houzdey_web\backend\venv\Lib\site-packages\starlette\routing.py", line 776, in app
+    await route.handle(scope, receive, send)
+  File "C:\Users\ccharles\Desktop\Houzdey Projects\houzdey_web\backend\venv\Lib\site-packages\starlette\routing.py", line 297, in handle
+    await self.app(scope, receive, send)
+  File "C:\Users\ccharles\Desktop\Houzdey Projects\houzdey_web\backend\venv\Lib\site-packages\starlette\routing.py", line 77, in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+  File "C:\Users\ccharles\Desktop\Houzdey Projects\houzdey_web\backend\venv\Lib\site-packages\starlette\_exception_handler.py", line 64, in wrapped_app
+    raise exc
+  File "C:\Users\ccharles\Desktop\Houzdey Projects\houzdey_web\backend\venv\Lib\site-packages\starlette\_exception_handler.py", line 53, in wrapped_app
+    await app(scope, receive, sender)
+  File "C:\Users\ccharles\Desktop\Houzdey Projects\houzdey_web\backend\venv\Lib\site-packages\starlette\routing.py", line 72, in app
+    response = await func(request)
+               ^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\ccharles\Desktop\Houzdey Projects\houzdey_web\backend\venv\Lib\site-packages\fastapi\routing.py", line 278, in app
+    raw_response = await run_endpoint_function(
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\ccharles\Desktop\Houzdey Projects\houzdey_web\backend\venv\Lib\site-packages\fastapi\routing.py", line 191, in run_endpoint_function
+    return await dependant.call(**values)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\ccharles\Desktop\Houzdey Projects\houzdey_web\backend\app\api\routes\upload.py", line 17, in upload_file
+AttributeError: 'dict' object has no attribute 'id'
+2025-11-07 18:37:17,459 - app.core.database - INFO - All database indexes created successfully (database.py:247)
+2025-11-07 18:38:40,465 - app.core.database - INFO - All database indexes created successfully (database.py:247)
+2025-11-07 18:39:08,455 - app.core.error_handlers - ERROR - Unexpected exception: 'dict' object has no attribute 'id' - Path: /api/v1/upload/ - Method: POST (error_handlers.py:93)
+Traceback (most recent call last):
+  File "C:\Users\ccharles\Desktop\Houzdey Projects\houzdey_web\backend\venv\Lib\site-packages\starlette\middleware\errors.py", line 164, in __call__
+    await self.app(scope, receive, _send)
+  File "C:\Users\ccharles\Desktop\Houzdey Projects\houzdey_web\backend\venv\Lib\site-packages\starlette\middleware\cors.py", line 93, in __call__
+    await self.simple_response(scope, receive, send, request_headers=headers)
+  File "C:\Users\ccharles\Desktop\Houzdey Projects\houzdey_web\backend\venv\Lib\site-packages\starlette\middleware\cors.py", line 148, in simple_response
+    await self.app(scope, receive, send)
+  File "C:\Users\ccharles\Desktop\Houzdey Projects\houzdey_web\backend\venv\Lib\site-packages\starlette\middleware\exceptions.py", line 65, in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+  File "C:\Users\ccharles\Desktop\Houzdey Projects\houzdey_web\backend\venv\Lib\site-packages\starlette\_exception_handler.py", line 64, in wrapped_app
+    raise exc
+  File "C:\Users\ccharles\Desktop\Houzdey Projects\houzdey_web\backend\venv\Lib\site-packages\starlette\_exception_handler.py", line 53, in wrapped_app
+    await app(scope, receive, sender)
+  File "C:\Users\ccharles\Desktop\Houzdey Projects\houzdey_web\backend\venv\Lib\site-packages\starlette\routing.py", line 756, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "C:\Users\ccharles\Desktop\Houzdey Projects\houzdey_web\backend\venv\Lib\site-packages\starlette\routing.py", line 776, in app
+    await route.handle(scope, receive, send)
+  File "C:\Users\ccharles\Desktop\Houzdey Projects\houzdey_web\backend\venv\Lib\site-packages\starlette\routing.py", line 297, in handle
+    await self.app(scope, receive, send)
+  File "C:\Users\ccharles\Desktop\Houzdey Projects\houzdey_web\backend\venv\Lib\site-packages\starlette\routing.py", line 77, in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+  File "C:\Users\ccharles\Desktop\Houzdey Projects\houzdey_web\backend\venv\Lib\site-packages\starlette\_exception_handler.py", line 64, in wrapped_app
+    raise exc
+  File "C:\Users\ccharles\Desktop\Houzdey Projects\houzdey_web\backend\venv\Lib\site-packages\starlette\_exception_handler.py", line 53, in wrapped_app
+    await app(scope, receive, sender)
+  File "C:\Users\ccharles\Desktop\Houzdey Projects\houzdey_web\backend\venv\Lib\site-packages\starlette\routing.py", line 72, in app
+    response = await func(request)
+               ^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\ccharles\Desktop\Houzdey Projects\houzdey_web\backend\venv\Lib\site-packages\fastapi\routing.py", line 278, in app
+    raw_response = await run_endpoint_function(
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\ccharles\Desktop\Houzdey Projects\houzdey_web\backend\venv\Lib\site-packages\fastapi\routing.py", line 191, in run_endpoint_function
+    return await dependant.call(**values)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\ccharles\Desktop\Houzdey Projects\houzdey_web\backend\app\api\routes\upload.py", line 23, in upload_file
+    file_url = await UploadService.upload_file(file, type, current_user.id, context)
+                                                           ^^^^^^^^^^^^^^^
+AttributeError: 'dict' object has no attribute 'id'
+2025-11-07 18:42:17,731 - app.core.database - INFO - All database indexes created successfully (database.py:247)
+2025-11-07 18:48:16,232 - app.api.routes.blog - ERROR - Error updating blog: '_id' (blog.py:371)
+2025-11-07 18:48:16,232 - app.core.error_handlers - WARNING - HTTP exception: Failed to update blog post - Status: 500 - Path: /api/v1/blog/690e2d14621d70c1fc78ef3a - Method: PUT (error_handlers.py:74)
+2025-11-07 18:51:36,360 - app.api.routes.blog - ERROR - Error updating blog: '_id' (blog.py:371)
+2025-11-07 18:51:36,361 - app.core.error_handlers - WARNING - HTTP exception: Failed to update blog post - Status: 500 - Path: /api/v1/blog/690e2d14621d70c1fc78ef3a - Method: PUT (error_handlers.py:74)
+2025-11-07 18:51:51,839 - app.core.database - INFO - All database indexes created successfully (database.py:247)
+2025-11-07 18:51:55,576 - app.api.routes.blog - INFO - Blog post updated: 690e2d14621d70c1fc78ef3a by admin 67b37d4684be06d3f9b8bdd8 (blog.py:367)
+2025-11-07 19:15:17,460 - app.core.error_handlers - WARNING - HTTP exception: Could not validate credentials - Status: 403 - Path: /api/v1/blog/690e2d14621d70c1fc78ef3a - Method: GET (error_handlers.py:74)
