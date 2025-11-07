@@ -34,6 +34,11 @@ from app.utils.email import send_verification_code
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
+# Helper function to get admin ID from current_admin dict
+def get_admin_id(current_admin: dict) -> str:
+    """Extract admin ID from current_admin dict (which has _id key)"""
+    return str(current_admin["_id"])
+
 # Helper function to log admin actions
 async def log_admin_action(admin_id: str, action_type: str, target_type: str, 
                           target_id: str = None, description: str = "", 
@@ -54,9 +59,9 @@ async def log_admin_action(admin_id: str, action_type: str, target_type: str,
 
 # Basic health check for admin panel
 @router.get("/health")
-async def admin_health_check(current_admin: User = Depends(get_current_admin_user)):
+async def admin_health_check(current_admin: dict = Depends(get_current_admin_user)):
     """Admin panel health check"""
-    return {"status": "ok", "admin": f"{current_admin.first_name} {current_admin.last_name}"}
+    return {"status": "ok", "admin": f"{current_admin.get('first_name', '')} {current_admin.get('last_name', '')}"}
 
 # DASHBOARD ROUTES
 @router.get("/dashboard/stats", response_model=AdminStats)
@@ -176,7 +181,8 @@ async def get_users(
             users.append(user)
         
         await log_admin_action(
-            str(current_admin.id), "VIEW", "users", 
+            get_admin_id(current_admin), 
+            "VIEW", "users", 
             description="Viewed users list"
         )
         
@@ -211,7 +217,7 @@ async def get_user_details(
         user["conversations_count"] = conversations_count
         
         await log_admin_action(
-            str(current_admin.id), "VIEW", "user", user_id,
+            get_admin_id(current_admin), "VIEW", "user", user_id,
             f"Viewed user details for {user.get('email', 'unknown')}"
         )
         
@@ -248,7 +254,7 @@ async def update_user(
             
             if result.modified_count > 0:
                 await log_admin_action(
-                    str(current_admin.id), "UPDATE", "user", user_id,
+                    get_admin_id(current_admin), "UPDATE", "user", user_id,
                     f"Updated user {existing_user.get('email', 'unknown')}",
                     {"updated_fields": list(update_data.keys())}
                 )
@@ -289,7 +295,7 @@ async def suspend_user(
         
         if result.modified_count > 0:
             await log_admin_action(
-                str(current_admin.id), "SUSPEND", "user", user_id,
+                str(current_admin["_id"]), "SUSPEND", "user", user_id,
                 f"Suspended user {existing_user.get('email', 'unknown')}: {reason}"
             )
             return {"message": "User suspended successfully"}
@@ -326,7 +332,7 @@ async def activate_user(
         
         if result.modified_count > 0:
             await log_admin_action(
-                str(current_admin.id), "ACTIVATE", "user", user_id,
+                str(current_admin["_id"]), "ACTIVATE", "user", user_id,
                 f"Activated user {existing_user.get('email', 'unknown')}"
             )
             return {"message": "User activated successfully"}
@@ -371,7 +377,7 @@ async def delete_user(
         
         if result.deleted_count > 0:
             await log_admin_action(
-                str(current_admin.id), "DELETE", "user", user_id,
+                str(current_admin["_id"]), "DELETE", "user", user_id,
                 f"Deleted user {existing_user.get('email', 'unknown')}"
             )
             return {"message": "User deleted successfully"}
@@ -423,7 +429,7 @@ async def get_properties_admin(
             properties.append(prop)
         
         await log_admin_action(
-            str(current_admin.id), "VIEW", "properties",
+            str(current_admin["_id"]), "VIEW", "properties",
             description="Viewed properties list"
         )
         
@@ -456,7 +462,7 @@ async def update_property_status_admin(
         
         if result.modified_count > 0:
             await log_admin_action(
-                str(current_admin.id), "UPDATE", "property", property_id,
+                str(current_admin["_id"]), "UPDATE", "property", property_id,
                 f"Updated property status to {status}"
             )
             return {"message": "Property status updated successfully"}
@@ -499,7 +505,7 @@ async def delete_property_admin(
         
         if result.deleted_count > 0:
             await log_admin_action(
-                str(current_admin.id), "DELETE", "property", property_id,
+                str(current_admin["_id"]), "DELETE", "property", property_id,
                 f"Deleted property {existing_property.get('title', 'unknown')}"
             )
             return {"message": "Property deleted successfully"}
@@ -547,7 +553,7 @@ async def update_system_settings(
         )
         
         await log_admin_action(
-            str(current_admin.id), "UPDATE", "system_settings",
+            str(current_admin["_id"]), "UPDATE", "system_settings",
             description="Updated system settings"
         )
         

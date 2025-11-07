@@ -18,8 +18,8 @@ from app.models.user import UserRole, UserStatus
 from app.core.security import get_password_hash
 
 async def check_users():
-    user_collection = db_manager.get_collection("users")
     """Check current users and their roles"""
+    user_collection = db_manager.get_collection("users")
     print("Current User Status:")
     print("=" * 50)
     
@@ -55,6 +55,7 @@ async def check_users():
 
 async def promote_user_to_admin():
     """Promote an existing user to admin"""
+    user_collection = db_manager.get_collection("users")
     print("\nPromote Existing User to Admin")
     print("=" * 50)
     
@@ -98,6 +99,7 @@ async def promote_user_to_admin():
 
 async def create_new_admin():
     """Create a new admin user"""
+    user_collection = db_manager.get_collection("users")
     print("\nCreate New Admin User")
     print("=" * 50)
     
