@@ -8,6 +8,11 @@ class UserStatus(str, Enum):
     VERIFIED = "verified"
     SUSPENDED = "suspended"
 
+class UserRole(str, Enum):
+    USER = "user"
+    ADMIN = "admin"
+    SUPER_ADMIN = "super_admin"
+
 class User(BaseModel):
     id: str | None = None
     email: EmailStr = Field(..., min_length=6)
@@ -15,12 +20,15 @@ class User(BaseModel):
     first_name: str = ""
     last_name: str = ""
     phone_number: str | None = None
+    phone_verified: bool = False
     date_of_birth: datetime | None = None
+    email_verified: bool = False
     verification_code: str | None = None
     code_expiry: datetime | None = None
     reset_code: str | None = None
     reset_code_expiry: datetime | None = None
     status: UserStatus = UserStatus.PENDING 
+    role: UserRole = UserRole.USER
     is_active: bool = False
     plan: str = "Basic"
     profile_picture: str = ""
@@ -30,6 +38,9 @@ class User(BaseModel):
     wishlist: List[str] = []
     bio: str | None = None
     company: str | None = None
+    # Chat status fields
+    chat_status: str = "offline"  # "online" or "offline"
+    last_seen: datetime | None = None
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
@@ -58,7 +69,12 @@ class UserResponse(User):
 
 class Token(BaseModel):
     access_token: str
+    refresh_token: str
     token_type: str
+
+
+class TokenRefreshRequest(BaseModel):
+    refresh_token: str
 
 
 class TokenData(BaseModel):

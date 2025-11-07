@@ -24,21 +24,26 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 def get_password_hash(password: str) -> str:
     return pwd_context.hash(password)
 
-# Create a JWT token for different operations (verify email, reset password, access)
+# Create a JWT token for different operations (verify email, reset password, access, refresh)
 def create_token(subject: str | Any, type_ops: str) -> str:
     """
-    Create a JWT token for different operations (verify email, reset password, access)
+    Create a JWT token for different operations (verify email, reset password, access, refresh)
     """
     if type_ops == "verify":
         hours = settings.EMAIL_VERIFY_EMAIL_EXPIRE_MINUTES
+        expire = datetime.utcnow() + timedelta(hours=hours)
     elif type_ops == "reset":
         hours = settings.EMAIL_RESET_PASSWORD_EXPIRE_MINUTES
+        expire = datetime.utcnow() + timedelta(hours=hours)
     elif type_ops == "access":
-        hours = settings.ACCESS_TOKEN_EXPIRE_MINUTES
+        minutes = settings.ACCESS_TOKEN_EXPIRE_MINUTES
+        expire = datetime.utcnow() + timedelta(minutes=minutes)
+    elif type_ops == "refresh":
+        days = settings.REFRESH_TOKEN_EXPIRE_DAYS
+        expire = datetime.utcnow() + timedelta(days=days)
     else:
         raise ValueError("Invalid token type")
 
-    expire = datetime.utcnow() + timedelta(hours=hours)
     to_encode = {"exp": expire, "sub": str(subject), "type": type_ops}
     return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 
@@ -109,6 +114,13 @@ def create_reset_password_token(email: str) -> str:
     """Create a reset password token"""
     return create_token(email, "reset")
 
+def create_refresh_token(subject: str) -> str:
+    """Create a refresh token"""
+    return create_token(subject, "refresh")
+
+def verify_refresh_token(token: str) -> Optional[str]:
+    """Verify refresh token and return subject"""
+    return verify_token(token, expected_type="refresh", raise_exception=False)
 
 
 def create_verification_code() -> str:

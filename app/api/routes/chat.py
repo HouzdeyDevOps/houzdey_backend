@@ -2,6 +2,7 @@ from fastapi import (
     APIRouter,
     Depends,
     HTTPException,
+    status,
 )
 from app.core.database import (
     conversation_collection,
@@ -17,6 +18,10 @@ from bson import ObjectId
 from bson.errors import InvalidId
 import logging
 from fastapi.responses import JSONResponse
+import json
+import cloudinary # type: ignore
+import cloudinary.uploader # type: ignore
+from app.api.socket_manager import get_socket_manager
 
 logger = logging.getLogger(__name__)
 
@@ -28,10 +33,10 @@ async def get_conversations(current_user: User = Depends(get_current_user)):
         # Find all conversations where the current user is either the user or owner
         conversations = await conversation_collection.find({
             "$or": [
-                {"user_id": str(current_user.id)},
-                {"owner_id": str(current_user.id)}
+                {"user_id": str(current_user["id"])},
+                {"owner_id": str(current_user["id"])}
             ]
-        }).sort("last_message_time", -1).to_list(None)
+        }).sort("last_message_time", -1).to_list(length=None)
 
         formatted_conversations = []
         for conv in conversations:
@@ -41,10 +46,16 @@ async def get_conversations(current_user: User = Depends(get_current_user)):
                 continue  # Skip if property not found
 
             # Get other user details (the one who is not the current user)
-            other_user_id = conv["owner_id"] if conv["user_id"] == str(current_user.id) else conv["user_id"]
+            other_user_id = conv["owner_id"] if conv["user_id"] == str(current_user["id"]) else conv["user_id"]
             other_user = await user_collection.find_one({"_id": ObjectId(other_user_id)})
             if not other_user:
                 continue  # Skip if other user not found
+
+            # Determine the correct unread count for the current user
+            # If current user is the regular user, get unread_count_user
+            # If current user is the owner, get unread_count_owner
+            is_current_user_owner = conv["owner_id"] == str(current_user["id"])
+            unread_count = conv.get("unread_count_owner" if is_current_user_owner else "unread_count_user", 0)
 
             # Format the conversation with all required details
             formatted_conversations.append({
@@ -71,7 +82,7 @@ async def get_conversations(current_user: User = Depends(get_current_user)):
                 },
                 "last_message": conv.get("last_message"),
                 "last_message_time": conv.get("last_message_time"),
-                "unread_count": conv.get("unread_count", 0),
+                "unread_count": unread_count,
                 "created_at": conv.get("created_at", datetime.utcnow())
             })
 
@@ -90,7 +101,7 @@ async def get_conversation(conversation_id: str, current_user: User = Depends(ge
             raise HTTPException(status_code=404, detail="Conversation not found")
 
         # Verify user has access to this conversation
-        if str(conversation["user_id"]) != str(current_user.id) and str(conversation["owner_id"]) != str(current_user.id):
+        if str(conversation["user_id"]) != str(current_user["id"]) and str(conversation["owner_id"]) != str(current_user["id"]):
             raise HTTPException(status_code=403, detail="Access denied")
 
         # Get property details
@@ -99,10 +110,14 @@ async def get_conversation(conversation_id: str, current_user: User = Depends(ge
             raise HTTPException(status_code=404, detail="Property not found")
 
         # Get other user details
-        other_user_id = conversation["owner_id"] if conversation["user_id"] == str(current_user.id) else conversation["user_id"]
+        other_user_id = conversation["owner_id"] if conversation["user_id"] == str(current_user["id"]) else conversation["user_id"]
         other_user = await user_collection.find_one({"_id": ObjectId(other_user_id)})
         if not other_user:
             raise HTTPException(status_code=404, detail="Other user not found")
+
+        # Determine the correct unread count for the current user
+        is_current_user_owner = conversation["owner_id"] == str(current_user["id"])
+        unread_count = conversation.get("unread_count_owner" if is_current_user_owner else "unread_count_user", 0)
 
         # Format and return conversation with all details
         return {
@@ -129,7 +144,7 @@ async def get_conversation(conversation_id: str, current_user: User = Depends(ge
             },
             "last_message": conversation.get("last_message"),
             "last_message_time": conversation.get("last_message_time"),
-            "unread_count": conversation.get("unread_count", 0),
+            "unread_count": unread_count,
             "created_at": conversation.get("created_at", datetime.utcnow())
         }
     except Exception as e:
@@ -145,7 +160,7 @@ async def get_messages(
         conversation = await conversation_collection.find_one(
             {
                 "_id": ObjectId(conversation_id),
-                "$or": [{"user_id": current_user.id}, {"owner_id": current_user.id}],
+                "$or": [{"user_id": current_user["id"]}, {"owner_id": current_user["id"]}],
             }
         )
 
@@ -194,7 +209,7 @@ async def create_conversation(property_id: str, current_user=Depends(get_current
         existing_conversation = await conversation_collection.find_one(
             {
                 "property_id": property_id,
-                "user_id": str(current_user.id),
+                "user_id": str(current_user["id"]),
                 "owner_id": str(property["owner_id"]),
             }
         )
@@ -203,7 +218,7 @@ async def create_conversation(property_id: str, current_user=Depends(get_current
             return {
                 "id": str(existing_conversation["_id"]),
                 "property_id": property_id,
-                "user_id": str(current_user.id),
+                "user_id": str(current_user["id"]),
                 "owner_id": str(property["owner_id"]),
                 "created_at": existing_conversation["created_at"],
             }
@@ -212,12 +227,13 @@ async def create_conversation(property_id: str, current_user=Depends(get_current
         conversation = {
             "_id": ObjectId(),
             "property_id": property_id,
-            "user_id": str(current_user.id),
+            "user_id": str(current_user["id"]),
             "owner_id": str(property["owner_id"]),
             "created_at": datetime.utcnow(),
             "last_message": None,
             "last_message_time": None,
-            "unread_count": 0,
+            "unread_count_user": 0,
+            "unread_count_owner": 0,
         }
 
         await conversation_collection.insert_one(conversation)
@@ -225,7 +241,7 @@ async def create_conversation(property_id: str, current_user=Depends(get_current
         return {
             "id": str(conversation["_id"]),
             "property_id": property_id,
-            "user_id": str(current_user.id),
+            "user_id": str(current_user["id"]),
             "owner_id": str(property["owner_id"]),
             "created_at": conversation["created_at"],
         }
@@ -238,16 +254,30 @@ async def create_conversation(property_id: str, current_user=Depends(get_current
 async def mark_messages_as_read(
     conversation_id: str, current_user=Depends(get_current_user)
 ):
+    # Get the conversation to determine which unread count to reset
+    conversation = await conversation_collection.find_one({"_id": ObjectId(conversation_id)})
+    if not conversation:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+    
+    # Mark messages as read
     await message_collection.update_many(
-        {"conversation_id": conversation_id, "receiver_id": str(current_user.id)},
+        {"conversation_id": conversation_id, "receiver_id": str(current_user["id"])},
         {"$set": {"read": True}},
     )
     
-    # Reset unread count
+    # Determine which unread count field to reset based on current user's role
+    is_current_user_owner = conversation["owner_id"] == str(current_user["id"])
+    unread_field = "unread_count_owner" if is_current_user_owner else "unread_count_user"
+    
+    # Reset the appropriate unread count
     await conversation_collection.update_one(
         {"_id": ObjectId(conversation_id)},
-        {"$set": {"unread_count": 0}}
+        {"$set": {unread_field: 0}}
     )
+    
+    # Emit socket event to notify other users
+    socket_manager = get_socket_manager()
+    await socket_manager.emit("messages_read", {"conversation_id": conversation_id}, room=conversation_id)
     
     return {"status": "success"}
 
@@ -263,7 +293,7 @@ async def delete_conversation(
     if not conversation:
         raise HTTPException(status_code=404, detail="Conversation not found")
 
-    if str(current_user.id) not in [conversation["user_id"], conversation["owner_id"]]:
+    if str(current_user["id"]) not in [conversation["user_id"], conversation["owner_id"]]:
         raise HTTPException(status_code=403, detail="Not authorized")
 
     # Delete all messages in the conversation
@@ -289,3 +319,64 @@ async def get_other_user_id(conversation_id: str, current_user_id: str) -> str:
         if conversation["owner_id"] == current_user_id
         else conversation["owner_id"]
     )
+
+
+@router.delete("/messages/{message_id}")
+async def delete_message(
+    message_id: str,
+    current_user: User = Depends(get_current_user)
+):
+    """Delete a message and its associated file if any"""
+    try:
+        # Find the message
+        message = await message_collection.find_one({"_id": ObjectId(message_id)})
+        
+        if not message:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Message not found"
+            )
+            
+        # Check if user is the sender
+        if str(message["sender_id"]) != str(current_user["id"]):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You can only delete your own messages"
+            )
+
+        # If message has a file, delete it from Cloudinary
+        try:
+            content = message.get("content")
+            if content:
+                try:
+                    content_data = json.loads(content)
+                    if content_data.get("file_url"):
+                        # Use robust URL parsing for Cloudinary
+                        from app.utils.cloudinary_config import extract_public_id_from_url
+                        public_id = extract_public_id_from_url(content_data["file_url"])
+                        if public_id:
+                            # Delete from Cloudinary
+                            result = cloudinary.uploader.destroy(public_id)
+                            logger.info(f"Deleted Cloudinary file: {public_id}, result: {result}")
+                except (json.JSONDecodeError, KeyError) as e:
+                    logger.warning(f"Failed to parse message content as JSON: {e}")
+        except Exception as e:
+            logger.error(f"Error deleting file from Cloudinary: {str(e)}")
+            # Continue with message deletion even if file deletion fails
+
+        # Delete the message
+        result = await message_collection.delete_one({"_id": ObjectId(message_id)})
+        
+        if result.deleted_count == 0:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Message not found"
+            )
+            
+        return {"status": "success", "message": "Message deleted successfully"}
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
+        )

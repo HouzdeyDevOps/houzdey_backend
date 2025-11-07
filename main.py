@@ -1,19 +1,33 @@
-from fastapi import FastAPI, status  # type: ignore
+from fastapi import FastAPI, status, Request  # type: ignore
 from fastapi.middleware.cors import CORSMiddleware  # type: ignore
 from fastapi.routing import APIRoute
 from fastapi.responses import RedirectResponse
+import uvicorn
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 
 # from app.scripts.seed_locations import seed_locations
 from app.core.database import create_indexes
 from app.api.main import api_router
 from app.core.config import settings
-from fastapi_socketio import SocketManager  # type: ignore
+from app.api.socket_manager import init_socket_manager
 from app.api.socket_handlers import register_socket_handlers
+
+# Import new architecture components
+from app.core.error_handlers import register_error_handlers
+from app.core.logging import setup_logging
 
 
 def custom_generate_unique_id(route: APIRoute) -> str:
     return f"{route.tags[0]}-{route.name}"
 
+
+# Setup logging
+setup_logging(level="INFO", log_file="logs/houzdey.log")
+
+# Initialize rate limiter
+limiter = Limiter(key_func=get_remote_address)
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
@@ -21,7 +35,14 @@ app = FastAPI(
     version="/api/v1",
 )
 
-socket_manager = SocketManager(app=app, mount_location="/socket.io/", cors_allowed_origins="*")
+# Add rate limiter to app state
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+# Register error handlers
+register_error_handlers(app)
+
+socket_manager = init_socket_manager(app)
 register_socket_handlers(socket_manager)
 
 
@@ -56,7 +77,10 @@ app.include_router(api_router, prefix=settings.API_V1_STR)
 #     await seed_locations()
 
 
-# @app.on_event("startup")
-# async def startup_event():
-#     await create_indexes()
+@app.on_event("startup")
+async def startup_event():
+    await create_indexes()
 
+# start the server
+if __name__ == "__main__":
+    uvicorn.run(app, host="0.0.0.0", port=8000, reload=True)

@@ -6,6 +6,7 @@ from pydantic import (
 )
 from pydantic_settings import BaseSettings, SettingsConfigDict # type: ignore
 import os
+from pathlib import Path
 
 
 def parse_cors(v: Any) -> list[str] | str:
@@ -24,7 +25,8 @@ class Settings(BaseSettings):
     # API Settings
     API_V1_STR: str = "/api/v1"
     SECRET_KEY: str
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 8
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60  # 60 minutes (1 hour)
+    REFRESH_TOKEN_EXPIRE_DAYS: int = 30  # 30 days
     
     # MongoDB Settings
     MONGO_URL: str
@@ -88,12 +90,29 @@ class Settings(BaseSettings):
     DESCRIPTION: str = "Houzdey APIs"
 
     # Company branding
-    COMPANY_LOGO_URL: str = os.getenv("COMPANY_LOGO_URL", "https://your-company-logo-url.com/logo.png")
+    COMPANY_LOGO_URL: str = os.getenv("COMPANY_LOGO_URL", "https://res.cloudinary.com/disbboeb4/image/upload/v1762463832/houzdey-logo_aqofgf.png")
     
     # Social media links
     FACEBOOK_URL: str = os.getenv("FACEBOOK_URL", "https://facebook.com/your-company")
     TWITTER_URL: str = os.getenv("TWITTER_URL", "https://twitter.com/your-company")
     INSTAGRAM_URL: str = os.getenv("INSTAGRAM_URL", "https://instagram.com/your-company")
+
+    # Media Storage Settings
+    MEDIA_ROOT: Path = Path("media")
+    UPLOAD_DIR: Path = MEDIA_ROOT / "uploads"
+    MAX_UPLOAD_SIZE: int = 10 * 1024 * 1024  # 10MB
+    ALLOWED_IMAGE_TYPES: set = {"image/jpeg", "image/png", "image/gif", "image/webp"}
+    ALLOWED_AUDIO_TYPES: set = {"audio/webm", "audio/mp3", "audio/wav", "audio/ogg"}
+
+    def initialize(self):
+        """Initialize application settings"""
+        # Create media directories if they don't exist
+        self.MEDIA_ROOT.mkdir(exist_ok=True)
+        self.UPLOAD_DIR.mkdir(exist_ok=True)
+        
+        # Create subdirectories for different file types
+        (self.UPLOAD_DIR / "images").mkdir(exist_ok=True)
+        (self.UPLOAD_DIR / "voice").mkdir(exist_ok=True)
 
 
 settings = Settings()

@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException, Path
 from backups.modelss import pricing_plans_db, PlanBase, User, UserRegister
 from typing import Dict, Optional, Annotated
 from app.api.deps import get_current_user, get_user_plan
-from app.core.database import user_collection, property_collection
+from app.core.database import db_manager
 from bson import ObjectId
 
 
@@ -22,6 +22,7 @@ async def upgrade_plan(
     current_user=Depends(get_current_user)
 
 ):
+    property_collection = db_manager.get_collection("properties")
     all_properties_cursor = property_collection.find()
     all_properties = await all_properties_cursor.to_list(length=None)
 

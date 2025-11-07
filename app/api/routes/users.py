@@ -1,514 +1,412 @@
 from typing import Annotated
-from fastapi import APIRouter, Depends, HTTPException, status, Form, Query
-from app.models.user import User, UserCreate, UserVerify, UserLogin, UserStatus
+from fastapi import APIRouter, Depends, HTTPException, status, Form, Query, File, UploadFile, Request
 from fastapi.responses import JSONResponse
-from app.crud import get_user, create_user, update_user
-from passlib.context import CryptContext  # type: ignore
-from app.api.deps import get_current_user
 from fastapi.security import OAuth2PasswordRequestForm
-from app.core.database import get_db_client, user_collection
-from bson import ObjectId
-from app.core.security import create_verification_code, verify_password, create_token, get_password_hash
-from pydantic import ValidationError
-from app.core.security import verify_token, verify_code
-from app.utils.email import send_verification_code
-from fastapi import File, UploadFile
-from app.utils.cloudinary_config import upload_image_to_cloudinary
-from datetime import datetime, timedelta
+from slowapi import Limiter
+from slowapi.util import get_remote_address
+
+from app.models.user import User, UserCreate, UserVerify, UserLogin, UserStatus, TokenRefreshRequest
+from app.services.user_service import UserService
+from app.core.dependencies import get_user_service
+from app.api.deps import get_current_user
+from app.core.security import create_token, create_refresh_token, verify_refresh_token, oauth2_scheme
+from app.utils.cloudinary_config import upload_image_to_cloudinary, delete_image_from_cloudinary, extract_public_id_from_url
+from app.repositories.token_repository import TokenRepository
 
 router = APIRouter()
-
-# Initialize Passlib's CryptContext
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+limiter = Limiter(key_func=get_remote_address)
 
 
-# POST /signup endpoint to create a new user
 @router.post("/register", status_code=status.HTTP_201_CREATED)
-async def create_new_user(user: UserCreate):
+@limiter.limit("5/minute")
+async def create_new_user(
+    request: Request,
+    user: UserCreate,
+    user_service: UserService = Depends(get_user_service)
+):
     """Create a new user."""
     try:
-        # Check if email already exists
-        existing_user = await get_user(
-            user.email
-        )  # If this doesn't throw an error then the email is already registered
-        if existing_user:
-            raise HTTPException(status_code=400, detail="Email already exists")
-
-        # Generate verification code
-        verification_code = create_verification_code()
-        code_expiry = datetime.utcnow() + timedelta(minutes=10)
-
-        # Create user with verification code
-        user_data = user.model_dump()
-        user_data.update(
-            {
-                "verification_code": verification_code,
-                "code_expiry": code_expiry,
-                "is_verified": False,
-            }
-        )
-
-        # Create user in database
-        new_user = await create_user(user_data)
-
-        # Send verification code
-        send_verification_code(user.email, verification_code)
-
-        return {
-            "message": "Registration successful. Please check your email to verify your account.",
-            "user_id": str(new_user.id),
-        }
-    except ValidationError as e:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e)
-        )
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e)
-        )
-
-
-# login route
-@router.post("/signin", response_model=dict)
-async def login_user(user_credentials: UserLogin):
-    print(user_credentials)
-    """Authenticate a user and return a token."""
-    try:
-        # Get user from database
-        user = await get_user(user_credentials.email)
-        if not user:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found"
-            )
-
-        # Verify password
-        if not verify_password(user_credentials.password, user.password):
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid email or password",
-            )
-
-        # Check if user is verified
-        if user.status == UserStatus.PENDING:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail={
-                    "message": "Please verify your email before signing in",
-                    "email": user.email,
-                    "status": "unverified"
-                }
-            )
-
-        # Create access token
-        access_token = create_token(subject=user.email, type_ops="access")
-
-        return {
-            "access_token": access_token,
-            "token_type": "bearer",
-            "user": {
-                "id": str(user.id),
-                "email": user.email,
-                "first_name": user.first_name,
-                "last_name": user.last_name,
-                "phone_number": user.phone_number,
-                "status": user.status,
-                "profile_picture": user.profile_picture,
-            },
-        }
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e)
-        )
-
-
-@router.post("/verify-code")
-async def verify_user_code(verification: UserVerify):
-    """Verify user's email with code"""
-    try:
-        user = await get_user(verification.email)
-        if not user:
-            raise HTTPException(status_code=404, detail="User not found")
-
-        if not verify_code(user, verification.code):
-            raise HTTPException(status_code=400, detail="Invalid or expired code")
-
-        # Update user verification status
-        success = await update_user(
-            user.id,
-            {
-                "is_verified": True,
-                "verification_code": None,
-                "code_expiry": None,
-                "status": "verified",
-            },
-        )
-
-        if not success:
-            raise HTTPException(
-                status_code=500, detail="Failed to update user verification status"
-            )
-
-        return {"message": "Email verified successfully"}
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e)
-        )
-
-
-# /users/resend-code
-@router.post("/resend-code")
-async def resend_code(email: str):
-    """Resend verification code"""
-    try:
-        verification_code = create_verification_code()
-        code_expiry = datetime.utcnow() + timedelta(minutes=10)
-
-        user = await get_user(email)
-        if not user:
-            raise HTTPException(status_code=404, detail="User not found")
-
-        await update_user(
-            user.id,
-            {
-                "verification_code": verification_code,
-                "code_expiry": code_expiry,
-            },
-        )
-        send_verification_code(email, verification_code)
-        return {"message": "Verification code resent successfully"}
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e)
-        )
-
-
-@router.post("/resend-verification")
-async def resend_verification(email: str = Query(..., description="Email to resend verification to")):
-    """Resend verification email"""
-    try:
-        user = await get_user(email)
-        if not user:
-            raise HTTPException(status_code=404, detail="User not found")
-            
-        if user.status == UserStatus.VERIFIED:
-            raise HTTPException(status_code=400, detail="Email is already verified")
-
-        verification_code = create_verification_code()
-        code_expiry = datetime.utcnow() + timedelta(minutes=10)
-
-        await update_user(
-            user.id,
-            {
-                "verification_code": verification_code,
-                "code_expiry": code_expiry,
-            },
-        )
+        created_user = await user_service.create_user(user.model_dump())
         
-        send_verification_code(email, verification_code)
-        return {"message": "Verification code resent successfully"}
-    except HTTPException:
-        raise
+        # Send verification email (implement email service)
+        # await email_service.send_verification_email(created_user["email"], created_user["verification_code"])
+        
+        return {
+            "message": "User created successfully. Please verify your email.",
+            "user_id": created_user["id"]
+        }
     except Exception as e:
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=str(e)
         )
 
 
-@router.post("/verify-email/{token}")
-async def verify_email(
-    token: str, db: Annotated[OAuth2PasswordRequestForm, Depends(get_db_client)]
+@router.post("/verify")
+async def verify_user_email(
+    user_verify: UserVerify,
+    user_service: UserService = Depends(get_user_service)
 ):
-    # verify token
-    email = verify_token(token, expected_type="verify")
-
-    if not email:
-        raise HTTPException(status_code=400, detail="Invalid token")
-
-    user = await get_user(email=email)
-
-    if not user:
-        raise HTTPException(
-            status_code=500,
-            detail="The user with this email does not exist in the system.",
-        )
-
-    # Access the ObjectId value properly
-    user_id = ObjectId(user["id"])
-    await user_collection.update_one({"_id": user_id}, {"$set": {"is_active": True}})
-
-    return JSONResponse(status_code=201, content={"message": "Email verified"})
-
-
-# GET /me endpoint to retrieve the current user response_model=UserResponse
-@router.get("/me")
-async def read_users_me(current_user: User = Depends(get_current_user)):
-    """Get the current user."""
-    return current_user
-
-
-@router.post("/upload-profile-picture")
-async def upload_profile_picture(
-    file: UploadFile = File(...), current_user: User = Depends(get_current_user)
-):
+    """Verify user email with verification code."""
     try:
-        # Upload to Cloudinary
-        image_url = await upload_image_to_cloudinary(
-            await file.read(), folder=f"profile_pictures/{current_user['id']}"
-        )
-
-        # Update user's profile picture URL in database
-        await user_collection.update_one(
-            {"_id": ObjectId(current_user["id"])},
-            {"$set": {"profile_picture": image_url}},
-        )
-
-        return {"profile_picture_url": image_url}
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
-
-
-@router.post("/personal-info")
-async def update_personal_info(
-    email: str = Form(...),
-    first_name: str = Form(...),
-    last_name: str = Form(...),
-    phone_number: str = Form(...),
-    date_of_birth: str = Form(...),
-    profile_picture: UploadFile = File(None),
-):
-    """Update user's personal information"""
-    try:
-        user = await get_user(email)
-        if not user:
-            raise HTTPException(status_code=404, detail="User not found")
-
-        if user.status != UserStatus.VERIFIED:
-            raise HTTPException(status_code=400, detail="Email not verified")
-
-        # Upload profile picture to Cloudinary if provided
-        profile_picture_url = None
-        if profile_picture:
-            try:
-                contents = await profile_picture.read()
-                profile_picture_url = await upload_image_to_cloudinary(
-                    contents, folder=f"profile_pictures/{user.id}"
-                )
-            except Exception as e:
-                raise HTTPException(
-                    status_code=500,
-                    detail=f"Failed to upload profile picture: {str(e)}",
-                )
-
-        # Update user with personal info
-        update_data = {
-            "first_name": first_name,
-            "last_name": last_name,
-            "phone_number": phone_number,
-            "date_of_birth": datetime.strptime(date_of_birth, "%Y-%m-%d"),
-            # "status": "complete",
-            "is_active": True,
-            "profile_picture": profile_picture_url,
-        }
-
-        # Only add profile picture URL if an image was uploaded
-        if profile_picture_url:
-            update_data["profile_picture"] = profile_picture_url
-
-        await update_user(user.id, update_data)
-
-        return {
-            "message": "Personal information updated successfully",
-            "profile_picture_url": profile_picture_url if profile_picture_url else None,
-        }
+        result = await user_service.verify_email(user_verify.email, user_verify.code)
+        return result
     except Exception as e:
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e)
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
         )
 
 
-# @router.patch("/personal-info")
-# async def update_personal_info(
-#     current_user: User = Depends(get_current_user),
-#     first_name: str = Form(...),
-#     last_name: str = Form(...),
-#     phone_number: str = Form(...),
-#     profile_picture: UploadFile = File(None)
-# ):
-#     try:
-#         user_data = {
-#             "first_name": first_name,
-#             "last_name": last_name,
-#             "phone_number": phone_number,
-#         }
-
-#         if profile_picture:
-#             # Upload to Cloudinary and get URL
-#             file_location = await upload_image_to_cloudinary(
-#                 await profile_picture.read(),
-#                 folder=f"profile_pictures/{current_user['id']}"
-#             )
-#             user_data["profile_picture"] = file_location
-
-#         # Update user in database
-#         await user_collection.update_one(
-#             {"_id": ObjectId(current_user["id"])},
-#             {"$set": user_data}
-#         )
-
-#         return {"message": "Personal information updated successfully"}
-#     except Exception as e:
-#         raise HTTPException(status_code=400, detail=str(e))
-
-
-@router.post("/forgot-password")
-async def forgot_password(email: str = Form(...)):
-    """
-    Send a password reset OTP code to the user's email
-    """
+@router.post("/verify-code")
+async def verify_code(
+    user_verify: UserVerify,
+    user_service: UserService = Depends(get_user_service)
+):
+    """Verify user email with verification code (alias endpoint)."""
     try:
-        # Check if user exists
-        user = await get_user(email)
-        if not user:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="User with this email does not exist"
-            )
+        result = await user_service.verify_email(user_verify.email, user_verify.code)
+        return result
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
 
-        # Generate verification code
-        reset_code = create_verification_code()
-        code_expiry = datetime.utcnow() + timedelta(minutes=10)
+
+@router.post("/resend-code")
+@limiter.limit("3/minute")
+async def resend_verification_code(
+    request: Request,
+    email: str = Query(..., description="Email address to resend verification code to"),
+    user_service: UserService = Depends(get_user_service)
+):
+    """Resend verification code to user's email."""
+    try:
+        result = await user_service.resend_verification_code(email)
+        return result
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+
+
+@router.post("/login")
+@limiter.limit("10/minute")
+async def login_user(
+    request: Request,
+    user_login: UserLogin,
+    user_service: UserService = Depends(get_user_service)
+):
+    """Authenticate user and return access token."""
+    try:
+        user = await user_service.authenticate_user(user_login.email, user_login.password)
         
-        # Update user with reset code
-        await user_collection.update_one(
-            {"email": email},
-            {
-                "$set": {
-                    "reset_code": reset_code,
-                    "reset_code_expiry": code_expiry
-                }
-            }
-        )
+        # Create access and refresh tokens
+        access_token = create_token(user["email"], "access")
+        refresh_token = create_refresh_token(user["email"])
         
-        # Generate and send reset password email with OTP
-        try:
-            await send_verification_code(email, reset_code, purpose="reset")
-            return {"message": "Password reset code sent successfully"}
-        except Exception as e:
-            # Log the error but don't expose internal error details
-            print(f"Failed to send reset password code: {str(e)}")
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Failed to send reset password code. Please try again later."
-            )
-            
-    except HTTPException as he:
-        raise he
-    except Exception as e:
-        print(f"Unexpected error in forgot_password: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="An unexpected error occurred. Please try again later."
-        )
-
-@router.post("/reset-password")
-async def reset_password(
-    email: str = Form(...),
-    code: str = Form(...),
-    new_password: str = Form(...)
-):
-    """
-    Reset user's password using the OTP code
-    """
-    try:
-        # Get user and verify code
-        user = await get_user(email)
-        if not user:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="User not found"
-            )
-        # Convert user to dict
-        user.model_dump()
-
-
-        # Verify the reset code
-        if not verify_code(user, code, code_type="reset"):
-            print("Code verification failed")
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Invalid or expired reset code"
-            )
-
-
-        # Hash new password
-        hashed_password = get_password_hash(new_password)
-        
-        # Update user's password and clear reset code
-        update_result = await user_collection.update_one(
-            {"email": email},
-            {
-                "$set": {"password": hashed_password},
-                "$unset": {"reset_code": "", "reset_code_expiry": ""}
-            }
-        )
-
-        if update_result.modified_count == 0:
-            print("Failed to update password in database")
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Failed to update password"
-            )
-
-        print("Password updated successfully")
-        return {"message": "Password reset successful"}
-    except HTTPException:
-        raise
-    except Exception as e:
-        print(f"Error in reset_password: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to reset password"
-        )
-
-# OAuth2 token endpoint for Swagger UI
-@router.post("/token", response_model=dict)
-async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends()):
-    """OAuth2 compatible token login, get an access token for future requests."""
-    try:
-        # Get user from database
-        user = await get_user(form_data.username)  # username field contains email
-        if not user:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Incorrect email or password"
-            )
-
-        # Verify password
-        if not verify_password(form_data.password, user.password):
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Incorrect email or password"
-            )
-
-        # Check if user is verified
-        if user.status == UserStatus.PENDING:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Email not verified"
-            )
-
-        # Create access token
-        access_token = create_token(subject=user.email, type_ops="access")
-
         return {
             "access_token": access_token,
+            "refresh_token": refresh_token,
+            "token_type": "bearer",
+            "user": user
+        }
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=str(e)
+        )
+
+
+@router.post("/token")
+@limiter.limit("10/minute")
+async def login_for_access_token(
+    request: Request,
+    form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
+    user_service: UserService = Depends(get_user_service)
+):
+    """OAuth2 compatible token endpoint."""
+    try:
+        user = await user_service.authenticate_user(form_data.username, form_data.password)
+        
+        access_token = create_token(user["email"], "access")
+        refresh_token = create_refresh_token(user["email"])
+        
+        return {
+            "access_token": access_token,
+            "refresh_token": refresh_token,
+            "token_type": "bearer"
+        }
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect username or password",
+            headers={"WWW-Authenticate": "Bearer"}
+        )
+
+
+@router.post("/refresh")
+@limiter.limit("20/minute")
+async def refresh_access_token(
+    request: Request,
+    token_request: TokenRefreshRequest,
+    user_service: UserService = Depends(get_user_service)
+):
+    """Refresh access token using refresh token."""
+    try:
+        token_repo = TokenRepository()
+        
+        # Check if refresh token is blacklisted
+        is_blacklisted = await token_repo.is_token_blacklisted(token_request.refresh_token)
+        if is_blacklisted:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid or expired refresh token"
+            )
+        
+        # Verify refresh token
+        email = verify_refresh_token(token_request.refresh_token)
+        if not email:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid or expired refresh token"
+            )
+        
+        # Get user to ensure they still exist and are active
+        try:
+            user = await user_service.get_user_by_email(email)
+        except Exception:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="User not found"
+            )
+        
+        # Create new access token
+        new_access_token = create_token(email, "access")
+        
+        return {
+            "access_token": new_access_token,
             "token_type": "bearer"
         }
     except HTTPException:
         raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to refresh token: {str(e)}"
+        )
+
+
+@router.post("/logout")
+async def logout_user(
+    current_user: dict = Depends(get_current_user),
+    token: str = Depends(oauth2_scheme)
+):
+    """Logout user by blacklisting their current access token."""
+    try:
+        token_repo = TokenRepository()
+        
+        # Blacklist the current access token
+        await token_repo.blacklist_token(
+            token=token,
+            user_email=current_user["email"],
+            token_type="access"
+        )
+        
+        return {"message": "Successfully logged out"}
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to logout: {str(e)}"
+        )
+
+
+@router.post("/logout-all")
+async def logout_all_devices(
+    current_user: dict = Depends(get_current_user)
+):
+    """Logout user from all devices by invalidating all their tokens."""
+    try:
+        token_repo = TokenRepository()
+        
+        # Blacklist all tokens for this user
+        await token_repo.blacklist_all_user_tokens(current_user["email"])
+        
+        return {"message": "Successfully logged out from all devices"}
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to logout from all devices: {str(e)}"
+        )
+
+
+@router.get("/me")
+async def get_current_user_profile(
+    current_user: dict = Depends(get_current_user)
+):
+    """Get current user profile."""
+    return current_user
+
+
+@router.put("/me")
+async def update_current_user_profile(
+    first_name: str = Form(None),
+    last_name: str = Form(None),
+    phone_number: str = Form(None),
+    bio: str = Form(None),
+    company: str = Form(None),
+    profile_picture: UploadFile = File(None),
+    current_user: dict = Depends(get_current_user),
+    user_service: UserService = Depends(get_user_service)
+):
+    """Update current user profile."""
+    try:
+        update_data = {}
+        
+        if first_name:
+            update_data["first_name"] = first_name
+        if last_name:
+            update_data["last_name"] = last_name
+        if phone_number:
+            update_data["phone_number"] = phone_number
+        if bio:
+            update_data["bio"] = bio
+        if company:
+            update_data["company"] = company
+        
+        # Handle profile picture upload
+        if profile_picture:
+            # Delete old profile picture from Cloudinary if it exists
+            if current_user.get("profile_picture"):
+                old_picture_url = current_user["profile_picture"]
+                # Only delete if it's a Cloudinary URL (not Google OAuth profile picture)
+                if "res.cloudinary.com" in old_picture_url:
+                    try:
+                        # Extract public_id from Cloudinary URL using utility function
+                        public_id = extract_public_id_from_url(old_picture_url)
+
+                        await delete_image_from_cloudinary(public_id)
+                        
+                    except Exception as e:
+                        # Log error but don't fail the update if old image deletion fails
+                        print(f"Warning: Failed to delete old profile picture: {str(e)}")
+            
+            # Upload new profile picture
+            contents = await profile_picture.read()
+            image_url = await upload_image_to_cloudinary(contents, "profile_pictures")
+            update_data["profile_picture"] = image_url
+        
+        if update_data:
+            updated_user = await user_service.update_user_profile(
+                current_user["id"], 
+                update_data, 
+                current_user["id"]
+            )
+            # Return the updated user with profile_picture_url for consistency
+            response_data = updated_user.copy()
+            if "profile_picture" in updated_user:
+                response_data["profile_picture_url"] = updated_user["profile_picture"]
+            return response_data
+        else:
+            return current_user
+            
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
+        )
+
+
+@router.post("/forgot-password")
+async def forgot_password(
+    email: str = Form(...),
+    user_service: UserService = Depends(get_user_service)
+):
+    """Request password reset."""
+    try:
+        result = await user_service.request_password_reset(email)
+        return result
+    except Exception as e:
+        # Don't reveal if user exists or not
+        return {"message": "If the email exists, a reset code has been sent"}
+
+
+@router.post("/reset-password")
+async def reset_password(
+    email: str = Form(...),
+    reset_code: str = Form(...),
+    new_password: str = Form(...),
+    user_service: UserService = Depends(get_user_service)
+):
+    """Reset user password with reset code."""
+    try:
+        result = await user_service.reset_password(email, reset_code, new_password)
+        return result
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+
+
+@router.post("/wishlist/{property_id}")
+async def add_to_wishlist(
+    property_id: str,
+    current_user: dict = Depends(get_current_user),
+    user_service: UserService = Depends(get_user_service)
+):
+    """Add property to user's wishlist."""
+    try:
+        result = await user_service.add_to_wishlist(
+            current_user["id"], 
+            property_id, 
+            current_user["id"]
+        )
+        return result
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
+        )
+
+
+@router.delete("/wishlist/{property_id}")
+async def remove_from_wishlist(
+    property_id: str,
+    current_user: dict = Depends(get_current_user),
+    user_service: UserService = Depends(get_user_service)
+):
+    """Remove property from user's wishlist."""
+    try:
+        result = await user_service.remove_from_wishlist(
+            current_user["id"], 
+            property_id, 
+            current_user["id"]
+        )
+        return result
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
+        )
+
+
+@router.patch("/chat-status")
+async def update_chat_status(
+    status_value: str = Form(..., alias="status"),
+    current_user: dict = Depends(get_current_user),
+    user_service: UserService = Depends(get_user_service)
+):
+    """Update user chat status."""
+    try:
+        result = await user_service.update_chat_status(
+            current_user["id"], 
+            status_value, 
+            current_user["id"]
+        )
+        return result
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

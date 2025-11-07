@@ -1,9 +1,9 @@
 import json
 import asyncio
-from ..core.database import houzdey_database
+from ..core.database import db_manager
 
 async def seed_locations():
-    collection = houzdey_database.states
+    collection = db_manager.get_collection("states")
 
     # First, clear existing data
     await collection.delete_many({})
