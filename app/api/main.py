@@ -10,6 +10,7 @@ from app.api.routes.admin import router as admin_router
 from app.api.routes.analytics import router as analytics_router
 from app.api.routes.notifications import router as notifications_router
 from app.api.routes.reviews_router import router as reviews_router
+from app.api.routes.support import router as support_router
 
 
 # Create API router
@@ -27,6 +28,7 @@ api_router.include_router(admin_router, prefix="/admin", tags=["admin"])
 api_router.include_router(analytics_router, prefix="/analytics", tags=["analytics"])
 api_router.include_router(notifications_router, prefix="/notifications", tags=["notifications"])
 api_router.include_router(reviews_router, prefix="/reviews", tags=["reviews"])
+api_router.include_router(support_router, prefix="/support", tags=["support"])
 
 
 

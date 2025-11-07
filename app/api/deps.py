@@ -1,9 +1,14 @@
 from fastapi import Depends, HTTPException, status  # type: ignore
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from typing import Optional
 from app.core.security import verify_token, oauth2_scheme
 from app.services.user_service import UserService
 from app.models.user import User, UserRole
 from app.core.dependencies import get_user_service
 from app.repositories.token_repository import TokenRepository
+
+# Optional bearer scheme for endpoints that work with or without auth
+optional_oauth2_scheme = HTTPBearer(auto_error=False)
 
 
 # Dependency function to retrieve the current user from the provided access token
@@ -83,6 +88,49 @@ async def get_current_super_admin_user(current_user: dict = Depends(get_current_
             detail="Super admin access required"
         )
     return current_user
+
+
+async def get_optional_current_user(
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(optional_oauth2_scheme),
+    user_service: UserService = Depends(get_user_service)
+) -> Optional[dict]:
+    """
+    Retrieves the current user if a valid token is provided, otherwise returns None.
+    This is useful for endpoints that work both authenticated and unauthenticated.
+    
+    :param credentials: Optional HTTP Authorization credentials
+    :param user_service: User service instance for user operations.
+    :return: The user data if token is valid, None if no token provided, HTTPException if token is invalid
+    """
+    if credentials is None:
+        return None
+    
+    token = credentials.credentials
+    token_repo = TokenRepository()
+    
+    try:
+        # Check if token is blacklisted
+        is_blacklisted = await token_repo.is_token_blacklisted(token)
+        if is_blacklisted:
+            return None
+        
+        # Decode the access token
+        payload = verify_token(
+            token,
+            expected_type="access",
+            raise_exception=False
+        )
+
+        if payload is None:
+            return None
+        
+        # Retrieve the user using the user service
+        user = await user_service.get_user_by_email(payload)
+        return user
+    except Exception:
+        # If anything goes wrong, just return None for optional auth
+        return None
+
 
 
 
