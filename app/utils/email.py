@@ -69,23 +69,28 @@ async def send_email(email_to: str, subject: str, html_content: str):
     message.add_alternative(html_content, subtype="html")
 
     try:
+        # Create SSL context for secure connection
+        tls_context = ssl.create_default_context()
+        
         # For port 465, use SMTP_SSL (direct SSL connection)
         if port == 465:
             async with aiosmtplib.SMTP(
                 hostname=smtp_server, 
                 port=port, 
                 use_tls=True,
-                start_tls=False  # Don't use STARTTLS for port 465
+                tls_context=tls_context,
+                start_tls=False,  # Don't use STARTTLS for port 465
+                timeout=60  # Increase timeout to 60 seconds
             ) as server:
                 await server.login(username, password)
                 await server.send_message(message)
                 print(f"Email sent successfully to {email_to}")
         else:
             # For port 587 or others, use STARTTLS
-            tls_context = ssl.create_default_context()
             async with aiosmtplib.SMTP(
                 hostname=smtp_server, 
-                port=port
+                port=port,
+                timeout=60  # Increase timeout to 60 seconds
             ) as server:
                 await server.starttls(tls_context=tls_context)
                 await server.login(username, password)
