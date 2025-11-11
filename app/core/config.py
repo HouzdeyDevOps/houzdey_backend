@@ -78,14 +78,9 @@ class Settings(BaseSettings):
     EMAIL_VERIFY_EMAIL_EXPIRE_MINUTES: int = 60 * 24 * 8
     EMAILS_FROM_NAME: str = "houzdey"
     
-    # SMTP Settings
-    EMAIL_HOST: str
-    EMAIL_PORT: int
-    EMAIL_SECURE: bool = True
-    EMAIL_USER: str
-    EMAIL_PASS: str
+    # SendGrid Settings
+    SENDGRID_API_KEY: str
     EMAIL_FROM: str
-    EMAIL_TO: str
 
     DESCRIPTION: str = "Houzdey APIs"
 
@@ -94,7 +89,7 @@ class Settings(BaseSettings):
     
     # Social media links
     FACEBOOK_URL: str = os.getenv("FACEBOOK_URL", "https://facebook.com/your-company")
-    TWITTER_URL: str = os.getenv("TWITTER_URL", "https://twitter.com/your-company")
+    LINKEDIN_URL: str = os.getenv("LINKEDIN_URL", "https://twitter.com/your-company")
     INSTAGRAM_URL: str = os.getenv("INSTAGRAM_URL", "https://instagram.com/your-company")
 
     # Media Storage Settings

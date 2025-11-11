@@ -1996,3 +1996,8 @@ AttributeError: 'dict' object has no attribute 'id'
 2025-11-08 02:18:03,746 - app.core.error_handlers - WARNING - HTTP exception: Not Found - Status: 404 - Path: //properties - Method: GET (error_handlers.py:74)
 2025-11-08 02:18:04,780 - app.core.error_handlers - WARNING - HTTP exception: Not Found - Status: 404 - Path: /api/properties - Method: GET (error_handlers.py:74)
 2025-11-08 02:18:06,969 - app.core.error_handlers - WARNING - HTTP exception: Not Found - Status: 404 - Path: /api/properties - Method: GET (error_handlers.py:74)
+2025-11-11 16:42:22,727 - app.core.database - INFO - All database indexes created successfully (database.py:247)
+2025-11-11 16:42:47,824 - app.utils.email - INFO - Email sent successfully to elcollinz@gmail.com - Status: 202 (email.py:74)
+2025-11-11 16:49:00,186 - app.core.database - INFO - All database indexes created successfully (database.py:247)
+2025-11-11 16:50:37,334 - app.utils.email - INFO - Email sent successfully to elcollinz@gmail.com - Status: 202 (email.py:74)
+2025-11-11 16:50:47,942 - app.core.database - INFO - All database indexes created successfully (database.py:247)
