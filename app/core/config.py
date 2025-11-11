@@ -46,12 +46,12 @@ class Settings(BaseSettings):
     GOOGLE_CLIENT_SECRET: str
     GOOGLE_REDIRECT_URI: str 
 
-    FACEBOOK_APP_ID: str
-    FACEBOOK_APP_SECRET: str
-    APPLE_CLIENT_ID: str
-    APPLE_TEAM_ID: str
-    APPLE_KEY_ID: str
-    APPLE_PRIVATE_KEY: str
+    FACEBOOK_APP_ID: str = ""
+    FACEBOOK_APP_SECRET: str = ""
+    APPLE_CLIENT_ID: str = ""
+    APPLE_TEAM_ID: str = ""
+    APPLE_KEY_ID: str = ""
+    APPLE_PRIVATE_KEY: str = ""
     
     @computed_field
     @property
