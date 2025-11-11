@@ -1,12 +1,14 @@
 from dataclasses import dataclass
 from pathlib import Path
-import ssl
-from email.message import EmailMessage
 from app.core.config import settings
 from jinja2 import Template
 from typing import Any
-import aiosmtplib # type: ignore
 from datetime import datetime
+from sendgrid import SendGridAPIClient
+from sendgrid.helpers.mail import Mail, Email, To, Content
+import logging
+
+logger = logging.getLogger(__name__)
 
 @dataclass
 class EmailData:
@@ -55,44 +57,28 @@ def generate_reset_password_email(email_to: str, email: str, token: str):
     return EmailData(html_content=html_content, subject=subject)
 
 async def send_email(email_to: str, subject: str, html_content: str):
-    """Send email asynchronously using aiosmtplib"""
-    smtp_server = settings.EMAIL_HOST
-    port = settings.EMAIL_PORT
-    username = settings.EMAIL_USER
-    password = settings.EMAIL_PASS
-    sender_email = settings.EMAIL_FROM
-
-    message = EmailMessage()
-    message["From"] = sender_email
-    message["To"] = email_to
-    message["Subject"] = subject
-    message.add_alternative(html_content, subtype="html")
-
+    """Send email using SendGrid API"""
     try:
-        # For port 465, use SMTP_SSL (direct SSL connection)
-        if port == 465:
-            async with aiosmtplib.SMTP(
-                hostname=smtp_server, 
-                port=port, 
-                use_tls=True,
-                start_tls=False  # Don't use STARTTLS for port 465
-            ) as server:
-                await server.login(username, password)
-                await server.send_message(message)
-                print(f"Email sent successfully to {email_to}")
-        else:
-            # For port 587 or others, use STARTTLS
-            tls_context = ssl.create_default_context()
-            async with aiosmtplib.SMTP(
-                hostname=smtp_server, 
-                port=port
-            ) as server:
-                await server.starttls(tls_context=tls_context)
-                await server.login(username, password)
-                await server.send_message(message)
-                print(f"Email sent successfully to {email_to}")
+        # Create SendGrid message
+        message = Mail(
+            from_email=Email(settings.EMAIL_FROM, "Houzdey"),
+            to_emails=To(email_to),
+            subject=subject,
+            html_content=Content("text/html", html_content)
+        )
+        
+        # Send email using SendGrid API
+        sg = SendGridAPIClient(settings.SENDGRID_API_KEY)
+        response = sg.send(message)
+        
+        logger.info(f"Email sent successfully to {email_to} - Status: {response.status_code}")
+        print(f"Email sent successfully to {email_to} - Status: {response.status_code}")
+        
+        return response
+        
     except Exception as e:
-        error_msg = f"Failed to send email: {str(e)}"
+        error_msg = f"Failed to send email via SendGrid: {str(e)}"
+        logger.error(error_msg)
         print(error_msg)
         raise Exception(error_msg)
 
@@ -122,7 +108,7 @@ def generate_verification_code_email(email_to: str, code: str, purpose: str = "v
         "logo_url": settings.COMPANY_LOGO_URL,  # Add to your settings
         "social_links": {
             "Facebook": settings.FACEBOOK_URL,  # Add to your settings
-            "Twitter": settings.TWITTER_URL,    # Add to your settings
+            "Twitter": settings.LINKEDIN_URL,    # Add to your settings
             "Instagram": settings.INSTAGRAM_URL  # Add to your settings
         }
     }

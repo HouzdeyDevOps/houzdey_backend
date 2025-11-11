@@ -8,6 +8,7 @@ cffi
 charset-normalizer
 click
 cloudinary
+sendgrid
 colorama
 cryptography
 dnspython
