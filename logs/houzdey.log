@@ -2001,3 +2001,5 @@ AttributeError: 'dict' object has no attribute 'id'
 2025-11-11 16:49:00,186 - app.core.database - INFO - All database indexes created successfully (database.py:247)
 2025-11-11 16:50:37,334 - app.utils.email - INFO - Email sent successfully to elcollinz@gmail.com - Status: 202 (email.py:74)
 2025-11-11 16:50:47,942 - app.core.database - INFO - All database indexes created successfully (database.py:247)
+2025-11-11 16:53:30,907 - app.core.database - INFO - All database indexes created successfully (database.py:247)
+2025-11-11 17:00:59,491 - app.core.database - INFO - All database indexes created successfully (database.py:247)
