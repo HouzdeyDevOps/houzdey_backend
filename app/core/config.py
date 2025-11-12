@@ -88,9 +88,9 @@ class Settings(BaseSettings):
     COMPANY_LOGO_URL: str = os.getenv("COMPANY_LOGO_URL", "https://res.cloudinary.com/disbboeb4/image/upload/v1762463832/houzdey-logo_aqofgf.png")
     
     # Social media links
-    FACEBOOK_URL: str = os.getenv("FACEBOOK_URL", "https://facebook.com/your-company")
+    FACEBOOK_URL: str = os.getenv("FACEBOOK_URL", "https://www.facebook.com/people/Houzdey/61583662165446/")
     LINKEDIN_URL: str = os.getenv("LINKEDIN_URL", "https://twitter.com/your-company")
-    INSTAGRAM_URL: str = os.getenv("INSTAGRAM_URL", "https://instagram.com/your-company")
+    INSTAGRAM_URL: str = os.getenv("INSTAGRAM_URL", "https://www.instagram.com/houzdey/")
 
     # Media Storage Settings
     MEDIA_ROOT: Path = Path("media")
