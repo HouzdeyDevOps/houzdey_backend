@@ -2007,3 +2007,45 @@ AttributeError: 'dict' object has no attribute 'id'
 2025-11-11 17:07:07,754 - app.core.database - INFO - All database indexes created successfully (database.py:247)
 2025-11-12 10:28:21,494 - app.utils.email - INFO - Email sent successfully to elcollinz@gmail.com - Status: 202 (email.py:74)
 2025-11-12 10:31:06,444 - app.utils.email - INFO - Email sent successfully to elcollinz@gmail.com - Status: 202 (email.py:74)
+2025-11-12 10:54:21,643 - app.core.database - INFO - All database indexes created successfully (database.py:247)
+2025-11-14 23:58:21,931 - app.core.database - INFO - All database indexes created successfully (database.py:247)
+2025-11-14 23:58:25,681 - app.core.error_handlers - WARNING - HTTP exception: 401: Invalid email or password - Status: 401 - Path: /api/v1/users/login - Method: POST (error_handlers.py:74)
+2025-11-14 23:58:34,101 - passlib.handlers.bcrypt - WARNING - (trapped) error reading bcrypt version (bcrypt.py:622)
+Traceback (most recent call last):
+  File "/mnt/c/Users/ccharles/Desktop/Houzdey Projects/houzdey_web/backend/venv/lib/python3.11/site-packages/passlib/handlers/bcrypt.py", line 620, in _load_backend_mixin
+    version = _bcrypt.__about__.__version__
+              ^^^^^^^^^^^^^^^^^
+AttributeError: module 'bcrypt' has no attribute '__about__'
+2025-11-14 23:58:34,111 - app.core.error_handlers - WARNING - HTTP exception: password cannot be longer than 72 bytes, truncate manually if necessary (e.g. my_password[:72]) - Status: 500 - Path: /api/v1/users/register - Method: POST (error_handlers.py:74)
+2025-11-14 23:58:45,445 - passlib.handlers.bcrypt - WARNING - (trapped) error reading bcrypt version (bcrypt.py:622)
+Traceback (most recent call last):
+  File "/mnt/c/Users/ccharles/Desktop/Houzdey Projects/houzdey_web/backend/venv/lib/python3.11/site-packages/passlib/handlers/bcrypt.py", line 620, in _load_backend_mixin
+    version = _bcrypt.__about__.__version__
+              ^^^^^^^^^^^^^^^^^
+AttributeError: module 'bcrypt' has no attribute '__about__'
+2025-11-14 23:58:45,452 - app.core.error_handlers - WARNING - HTTP exception: password cannot be longer than 72 bytes, truncate manually if necessary (e.g. my_password[:72]) - Status: 500 - Path: /api/v1/users/register - Method: POST (error_handlers.py:74)
+2025-11-15 00:00:28,778 - app.core.database - INFO - All database indexes created successfully (database.py:247)
+2025-11-15 00:01:08,619 - passlib.handlers.bcrypt - WARNING - (trapped) error reading bcrypt version (bcrypt.py:622)
+Traceback (most recent call last):
+  File "/mnt/c/Users/ccharles/Desktop/Houzdey Projects/houzdey_web/backend/venv/lib/python3.11/site-packages/passlib/handlers/bcrypt.py", line 620, in _load_backend_mixin
+    version = _bcrypt.__about__.__version__
+              ^^^^^^^^^^^^^^^^^
+AttributeError: module 'bcrypt' has no attribute '__about__'
+2025-11-15 00:01:08,632 - app.core.error_handlers - WARNING - HTTP exception: password cannot be longer than 72 bytes, truncate manually if necessary (e.g. my_password[:72]) - Status: 500 - Path: /api/v1/users/register - Method: POST (error_handlers.py:74)
+2025-11-15 00:03:12,811 - app.core.database - INFO - All database indexes created successfully (database.py:247)
+2025-11-15 00:03:13,555 - passlib.handlers.bcrypt - WARNING - (trapped) error reading bcrypt version (bcrypt.py:622)
+Traceback (most recent call last):
+  File "/mnt/c/Users/ccharles/Desktop/Houzdey Projects/houzdey_web/backend/venv/lib/python3.11/site-packages/passlib/handlers/bcrypt.py", line 620, in _load_backend_mixin
+    version = _bcrypt.__about__.__version__
+              ^^^^^^^^^^^^^^^^^
+AttributeError: module 'bcrypt' has no attribute '__about__'
+2025-11-15 00:03:13,566 - app.core.error_handlers - WARNING - HTTP exception: password cannot be longer than 72 bytes, truncate manually if necessary (e.g. my_password[:72]) - Status: 500 - Path: /api/v1/users/register - Method: POST (error_handlers.py:74)
+2025-11-15 00:03:51,510 - passlib.handlers.bcrypt - WARNING - (trapped) error reading bcrypt version (bcrypt.py:622)
+Traceback (most recent call last):
+  File "/mnt/c/Users/ccharles/Desktop/Houzdey Projects/houzdey_web/backend/venv/lib/python3.11/site-packages/passlib/handlers/bcrypt.py", line 620, in _load_backend_mixin
+    version = _bcrypt.__about__.__version__
+              ^^^^^^^^^^^^^^^^^
+AttributeError: module 'bcrypt' has no attribute '__about__'
+2025-11-15 00:03:51,517 - app.core.error_handlers - WARNING - HTTP exception: password cannot be longer than 72 bytes, truncate manually if necessary (e.g. my_password[:72]) - Status: 500 - Path: /api/v1/users/register - Method: POST (error_handlers.py:74)
+2025-11-15 00:07:41,023 - app.core.database - INFO - All database indexes created successfully (database.py:247)
+2025-11-15 00:07:46,372 - app.utils.email - INFO - Email sent successfully to elcollinz+1@gmail.com - Status: 202 (email.py:74)

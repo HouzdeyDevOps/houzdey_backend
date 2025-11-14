@@ -1,7 +1,7 @@
 aiosmtplib
 annotated-types
 anyio
-bcrypt
+bcrypt==3.2.2
 bidict
 certifi
 cffi
