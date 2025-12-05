@@ -52,8 +52,13 @@ async def broadcast_user_status(socket_manager, user_id: str, status: str, last_
         "last_seen": last_seen.isoformat() if last_seen else None
     }
     
-    # Broadcast to all connected sockets (they'll filter based on their needs)
-    await socket_manager.emit('user_status_update', status_data)
+    # Emit to specific user's connections only (more efficient)
+    if user_id in user_sockets:
+        for sid in user_sockets[user_id]:
+            await socket_manager.emit('user_status', status_data, room=sid)
+    
+    # Also emit to users in active conversations with this user
+    await broadcast_to_conversation_partners(socket_manager, user_id, status_data)
 
 async def check_user_status(socket_manager, user_id: str):
     """Check and update user status"""
@@ -97,6 +102,32 @@ async def check_user_status(socket_manager, user_id: str):
 async def is_user_online(user_id: str) -> bool:
     """Check if a user is currently online"""
     return user_id in user_sockets and len(user_sockets[user_id]) > 0
+
+async def broadcast_to_conversation_partners(socket_manager, user_id: str, status_data: dict):
+    """Broadcast status update to all users who have conversations with this user"""
+    try:
+        # Find all conversations where this user is a participant
+        conversations = await conversation_collection.find({
+            "$or": [
+                {"user1_id": user_id},
+                {"user2_id": user_id}
+            ]
+        }).to_list(length=None)
+        
+        # Get partner IDs
+        partner_ids = set()
+        for conv in conversations:
+            partner_id = conv.get("user2_id") if conv.get("user1_id") == user_id else conv.get("user1_id")
+            if partner_id and partner_id != user_id:
+                partner_ids.add(partner_id)
+        
+        # Emit to all online partners
+        for partner_id in partner_ids:
+            if partner_id in user_sockets:
+                for sid in user_sockets[partner_id]:
+                    await socket_manager.emit('user_status', status_data, room=sid)
+    except Exception as e:
+        logger.error(f"Error broadcasting to conversation partners: {e}")
 
 async def send_chat_notification(sender_id: str, receiver_id: str, message_content: str, conversation_id: str, property_id: str):
     """Send notification for new chat message"""
@@ -387,12 +418,17 @@ def register_socket_handlers(socket_manager):
 
     @socket_manager.on("typing_status")
     async def typing_status(sid, data):
+        """Handle typing status updates - optimized to use conversation rooms"""
         try:
             user_id = active_connections.get(sid)
             if not user_id:
                 return
 
-            conversation = await conversation_collection.find_one({"_id": ObjectId(data["conversation_id"])})
+            conversation_id = data.get("conversation_id")
+            if not conversation_id:
+                return
+
+            conversation = await conversation_collection.find_one({"_id": ObjectId(conversation_id)})
             if not conversation:
                 return
 
