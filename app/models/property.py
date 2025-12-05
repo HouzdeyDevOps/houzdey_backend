@@ -28,6 +28,7 @@ class PropertyAmenity(BaseModel):
 class Property(BaseModel):
     id: Optional[str] = None
     title: str
+    slug: Optional[str] = None  # SEO-friendly URL slug
     type: str
     price: float
     rental_price: Optional[float] = None

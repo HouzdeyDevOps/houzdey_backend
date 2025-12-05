@@ -8,6 +8,7 @@ from app.repositories.user_repository import UserRepository
 from app.repositories.review_repository import ReviewRepository
 from app.models.property import SortBy, SortOrder, PropertyCreate, PropertyUpdate
 from app.core.exceptions import ValidationError, NotFoundError, PermissionError, BusinessLogicError
+from app.utils.slug import generate_property_slug
 
 
 class PropertyService(BaseService):
@@ -141,6 +142,48 @@ class PropertyService(BaseService):
         
         return property_obj
     
+    async def get_property_by_slug(self, slug: str) -> Dict[str, Any]:
+        """Get a property by its SEO-friendly slug"""
+        # Find property by slug
+        property_obj = await self.property_repo.find_one({"slug": slug})
+        self.ensure_exists(property_obj, "Property")
+        
+        # Get owner information
+        owner = await self.user_repo.get_by_id(property_obj["owner_id"])
+        if owner:
+            property_obj["owner"] = {
+                "id": property_obj["owner_id"],
+                "name": f"{owner.get('first_name', '')} {owner.get('last_name', '')}".strip(),
+                "email": owner.get("email", ""),
+                "phone": owner.get("phone_number", ""),
+                "image": owner.get("profile_picture", "")
+            }
+        
+        # Get reviews with user information
+        reviews = await self.review_repo.find_by_property_id(property_obj["id"])
+        enriched_reviews = []
+        
+        for review in reviews:
+            review_user = await self.user_repo.get_by_id(review["user_id"])
+            if review_user:
+                enriched_reviews.append({
+                    "id": review["id"],
+                    "rating": review["rating"],
+                    "comment": review["comment"],
+                    "date": review["created_at"],
+                    "user": {
+                        "name": f"{review_user.get('first_name', '')} {review_user.get('last_name', '')}".strip(),
+                        "image": review_user.get('profile_picture', '')
+                    }
+                })
+        
+        property_obj["reviews"] = enriched_reviews
+        
+        # Increment view count
+        await self.property_repo.increment_view_count(property_obj["id"])
+        
+        return property_obj
+    
     async def create_property(self, property_data: Dict[str, Any], owner_id: str) -> Dict[str, Any]:
         """Create a new property"""
         if not self.validate_object_id(owner_id):
@@ -183,8 +226,25 @@ class PropertyService(BaseService):
         if "state" in property_data and "lga" in property_data and "ward" in property_data:
             property_data["location"] = f"{property_data['state']}, {property_data['lga']}, {property_data['ward']}"
         
-        # Create the property
-        return await self.property_repo.create(property_data)
+        # Create the property first to get the ID
+        created_property = await self.property_repo.create(property_data)
+        
+        # Generate SEO-friendly slug after getting the property ID
+        if created_property and created_property.get("id"):
+            slug = generate_property_slug(
+                listing_type=property_data.get("listing_type", "rent"),
+                beds=property_data.get("beds", 0),
+                property_type=property_data.get("type", "property"),
+                lga=property_data.get("lga", ""),
+                state=property_data.get("state", ""),
+                property_id=created_property["id"]
+            )
+            
+            # Update property with slug
+            await self.property_repo.update_by_id(created_property["id"], {"slug": slug})
+            created_property["slug"] = slug
+        
+        return created_property
     
     async def update_property(self, property_id: str, property_update: Dict[str, Any], current_user_id: str) -> Dict[str, Any]:
         """Update a property"""

@@ -72,12 +72,28 @@ async def get_properties(
         )
 
 
+@router.get("/slug/{slug:path}")
+async def get_property_by_slug(
+    slug: str,
+    property_service: PropertyService = Depends(get_property_service)
+):
+    """Get a property by SEO-friendly slug with owner and reviews information"""
+    try:
+        property_obj = await property_service.get_property_by_slug(slug)
+        return property_obj
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND if "not found" in str(e).lower() else status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
+        )
+
+
 @router.get("/{property_id}")
 async def get_property_by_id(
     property_id: str,
     property_service: PropertyService = Depends(get_property_service)
 ):
-    """Get a property by ID with owner and reviews information"""
+    """Get a property by ID with owner and reviews information (legacy support)"""
     try:
         property_obj = await property_service.get_property_by_id(property_id)
         return property_obj

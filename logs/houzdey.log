@@ -2049,3 +2049,43 @@ AttributeError: module 'bcrypt' has no attribute '__about__'
 2025-11-15 00:03:51,517 - app.core.error_handlers - WARNING - HTTP exception: password cannot be longer than 72 bytes, truncate manually if necessary (e.g. my_password[:72]) - Status: 500 - Path: /api/v1/users/register - Method: POST (error_handlers.py:74)
 2025-11-15 00:07:41,023 - app.core.database - INFO - All database indexes created successfully (database.py:247)
 2025-11-15 00:07:46,372 - app.utils.email - INFO - Email sent successfully to elcollinz+1@gmail.com - Status: 202 (email.py:74)
+2025-11-26 11:41:32,077 - app.core.database - INFO - All database indexes created successfully (database.py:247)
+2025-11-26 11:50:44,564 - app.core.error_handlers - WARNING - HTTP exception: 401: Invalid email or password - Status: 401 - Path: /api/v1/users/login - Method: POST (error_handlers.py:74)
+2025-11-26 14:10:44,695 - app.core.error_handlers - WARNING - HTTP exception: Could not validate credentials - Status: 403 - Path: /api/v1/properties/users/me/properties - Method: GET (error_handlers.py:74)
+2025-11-26 14:10:44,701 - app.core.error_handlers - WARNING - HTTP exception: Could not validate credentials - Status: 403 - Path: /api/v1/wishlist/ids - Method: GET (error_handlers.py:74)
+2025-11-26 14:10:46,159 - app.core.error_handlers - WARNING - HTTP exception: Could not validate credentials - Status: 403 - Path: /api/v1/wishlist/ids - Method: GET (error_handlers.py:74)
+2025-11-26 14:10:46,164 - app.core.error_handlers - WARNING - HTTP exception: Could not validate credentials - Status: 403 - Path: /api/v1/properties/users/me/properties - Method: GET (error_handlers.py:74)
+2025-11-26 20:20:00,895 - pymongo.client - ERROR - MongoClient background task encountered an error: (logger.py:104)
+Traceback (most recent call last):
+  File "/mnt/c/Users/ccharles/Desktop/Houzdey Projects/houzdey_web/backend/venv/lib/python3.11/site-packages/pymongo/synchronous/mongo_client.py", line 2248, in _process_periodic_tasks
+    self._topology.update_pool()
+  File "/mnt/c/Users/ccharles/Desktop/Houzdey Projects/houzdey_web/backend/venv/lib/python3.11/site-packages/pymongo/synchronous/topology.py", line 688, in update_pool
+    server.pool.remove_stale_sockets(generation)
+  File "/mnt/c/Users/ccharles/Desktop/Houzdey Projects/houzdey_web/backend/venv/lib/python3.11/site-packages/pymongo/synchronous/pool.py", line 978, in remove_stale_sockets
+    conn = self.connect()
+           ^^^^^^^^^^^^^^
+  File "/mnt/c/Users/ccharles/Desktop/Houzdey Projects/houzdey_web/backend/venv/lib/python3.11/site-packages/pymongo/synchronous/pool.py", line 1067, in connect
+    conn.hello()
+  File "/mnt/c/Users/ccharles/Desktop/Houzdey Projects/houzdey_web/backend/venv/lib/python3.11/site-packages/pymongo/synchronous/pool.py", line 258, in hello
+    return self._hello(None, None)
+           ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/mnt/c/Users/ccharles/Desktop/Houzdey Projects/houzdey_web/backend/venv/lib/python3.11/site-packages/pymongo/synchronous/pool.py", line 300, in _hello
+    doc = self.command("admin", cmd, publish_events=False, exhaust_allowed=awaitable)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/mnt/c/Users/ccharles/Desktop/Houzdey Projects/houzdey_web/backend/venv/lib/python3.11/site-packages/pymongo/synchronous/helpers.py", line 47, in inner
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/mnt/c/Users/ccharles/Desktop/Houzdey Projects/houzdey_web/backend/venv/lib/python3.11/site-packages/pymongo/synchronous/pool.py", line 441, in command
+    self._raise_connection_failure(error)
+  File "/mnt/c/Users/ccharles/Desktop/Houzdey Projects/houzdey_web/backend/venv/lib/python3.11/site-packages/pymongo/synchronous/pool.py", line 413, in command
+    return command(
+           ^^^^^^^^
+  File "/mnt/c/Users/ccharles/Desktop/Houzdey Projects/houzdey_web/backend/venv/lib/python3.11/site-packages/pymongo/synchronous/network.py", line 198, in command
+    reply = receive_message(conn, request_id)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/mnt/c/Users/ccharles/Desktop/Houzdey Projects/houzdey_web/backend/venv/lib/python3.11/site-packages/pymongo/network_layer.py", line 759, in receive_message
+    length, _, response_to, op_code = _UNPACK_HEADER(receive_data(conn, 16, deadline))
+                                                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/mnt/c/Users/ccharles/Desktop/Houzdey Projects/houzdey_web/backend/venv/lib/python3.11/site-packages/pymongo/network_layer.py", line 361, in receive_data
+    raise _OperationCancelled("operation cancelled") from None
+pymongo.errors._OperationCancelled: operation cancelled
