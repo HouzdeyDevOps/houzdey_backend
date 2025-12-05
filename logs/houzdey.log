@@ -2089,3 +2089,8 @@ Traceback (most recent call last):
   File "/mnt/c/Users/ccharles/Desktop/Houzdey Projects/houzdey_web/backend/venv/lib/python3.11/site-packages/pymongo/network_layer.py", line 361, in receive_data
     raise _OperationCancelled("operation cancelled") from None
 pymongo.errors._OperationCancelled: operation cancelled
+2025-12-05 22:34:06,049 - app.core.database - INFO - All database indexes created successfully (database.py:247)
+2025-12-05 22:36:32,896 - app.core.error_handlers - WARNING - HTTP exception: 'PropertyRepository' object has no attribute 'find_one' - Status: 500 - Path: /api/v1/properties/slug/for-rent/3-bedroom-apartment-enugu-east-enugu-97d3a21c - Method: GET (error_handlers.py:74)
+2025-12-05 22:36:33,364 - app.core.error_handlers - WARNING - HTTP exception: 'PropertyRepository' object has no attribute 'find_one' - Status: 500 - Path: /api/v1/properties/slug/for-rent/3-bedroom-apartment-enugu-east-enugu-97d3a21c - Method: GET (error_handlers.py:74)
+2025-12-05 22:38:06,003 - app.core.database - INFO - All database indexes created successfully (database.py:247)
+2025-12-05 22:44:25,307 - app.core.database - INFO - All database indexes created successfully (database.py:247)

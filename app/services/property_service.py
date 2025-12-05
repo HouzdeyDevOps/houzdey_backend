@@ -151,13 +151,15 @@ class PropertyService(BaseService):
         # Get owner information
         owner = await self.user_repo.get_by_id(property_obj["owner_id"])
         if owner:
-            property_obj["owner"] = {
+            property_obj["host"] = {
                 "id": property_obj["owner_id"],
                 "name": f"{owner.get('first_name', '')} {owner.get('last_name', '')}".strip(),
                 "email": owner.get("email", ""),
-                "phone": owner.get("phone_number", ""),
-                "image": owner.get("profile_picture", "")
-            }
+                "phone_number": owner.get("phone_number", ""),
+                "image": owner.get("profile_picture", ""),
+                "company": owner.get("company", ""),
+                "role": owner.get("role", "Property Owner")
+            }   
         
         # Get reviews with user information
         reviews = await self.review_repo.find_by_property_id(property_obj["id"])

@@ -51,6 +51,17 @@ class BaseRepository(ABC):
         except Exception:
             return False
     
+    async def find_one(self, query: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """Find a single document matching the query"""
+        try:
+            doc = await self.collection.find_one(query)
+            if doc:
+                doc["id"] = str(doc.pop("_id"))
+                return doc
+            return None
+        except Exception:
+            return None
+    
     async def find(self, query: Dict[str, Any] = None, 
                    skip: int = 0, 
                    limit: int = 0,
