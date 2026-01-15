@@ -50,6 +50,8 @@ app.add_middleware(
         "http://localhost:3001",
         "http://127.0.0.1:3000",
         "http://127.0.0.1:3001",
+        "https://houzdey.com",
+        "https://www.houzdey.com",
     ],
     allow_credentials=True,
     allow_methods=["*"],
