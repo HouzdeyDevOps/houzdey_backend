@@ -27,21 +27,29 @@ user_connection_times: Dict[str, datetime] = {}  # user_id -> datetime
 async def authenticate_socket(token: str):
     """Authenticate socket connection using JWT token"""
     try:
+        logger.info(f"Attempting to decode JWT token")
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
         user_email = payload.get("sub")  # Get email from token
+        logger.info(f"JWT decoded successfully, email: {user_email}")
 
         if user_email is None:
+            logger.error("No email found in JWT payload")
             raise JWTError
         
         # Get user by email to get the user ID
         user_service = UserService()
         user = await user_service.get_user_by_email(user_email)
         if not user:
+            logger.error(f"User not found for email: {user_email}")
             raise JWTError
-            
+        
+        logger.info(f"User authenticated successfully: {user['id']}")
         return user["id"]  # Return user ID instead of email
-    except JWTError:
-        logger.error(f"Socket authentication failed for token")
+    except JWTError as e:
+        logger.error(f"Socket authentication failed - JWT error: {str(e)}")
+        return None
+    except Exception as e:
+        logger.error(f"Socket authentication failed - Unexpected error: {str(e)}", exc_info=True)
         return None
 
 async def broadcast_user_status(socket_manager, user_id: str, status: str, last_seen: datetime):
@@ -175,22 +183,29 @@ async def send_chat_notification(sender_id: str, receiver_id: str, message_conte
 def register_socket_handlers(socket_manager):
     """Register all Socket.IO event handlers"""
     
-    @socket_manager.on("connect")
-    async def connect(sid, environ, auth=None):
-        """Handle Socket.IO connections"""
+    @socket_manager.on('connect')
+    async def connect(sid, environ, auth):
+        """Handle Socket.IO connections with auth parameter"""
         try:
-            # Get token from auth data
-            if not auth or "token" not in auth:
-                logger.warning(f"Connection attempt without token: {sid}")
-                await socket_manager.disconnect(sid)
+            logger.info(f"New connection attempt from sid: {sid}")
+            logger.info(f"Auth data received: {auth}")
+            
+            # Check if auth contains token
+            if not auth or not isinstance(auth, dict) or "token" not in auth:
+                logger.error(f"Connection attempt without token from sid: {sid}")
+                logger.error(f"Auth data: {auth}")
                 return False
 
+            token = auth["token"]
+            logger.info(f"Attempting to authenticate socket connection for sid: {sid}")
+            
             # Authenticate user
-            user_id = await authenticate_socket(auth["token"])
+            user_id = await authenticate_socket(token)
             if not user_id:
-                logger.warning("Failed to authenticate socket connection")
-                await socket_manager.disconnect(sid)
+                logger.error(f"Failed to authenticate socket connection for sid: {sid}")
                 return False
+
+            logger.info(f"Successfully authenticated user_id: {user_id} for sid: {sid}")
 
             # Store the connection
             active_connections[sid] = user_id
@@ -212,16 +227,14 @@ def register_socket_handlers(socket_manager):
             # Send confirmation to the connected client
             await socket_manager.emit('connect_confirmed', {'user_id': user_id}, room=sid)
             
-            logger.info(f"User {user_id} connected with socket {sid}")
-            return True
+            logger.info(f"User {user_id} successfully connected with socket {sid}")
 
         except Exception as e:
-            logger.error(f"Error in connect handler: {str(e)}")
-            await socket_manager.disconnect(sid)
+            logger.error(f"Error in connect handler for sid {sid}: {str(e)}", exc_info=True)
             return False
 
-    @socket_manager.on("disconnect")
-    async def disconnect(sid, *args):
+    @socket_manager.on('disconnect')
+    async def disconnect(sid):
         """Handle Socket.IO disconnections"""
         if sid in active_connections:
             try:
@@ -245,7 +258,7 @@ def register_socket_handlers(socket_manager):
             except Exception as e:
                 logger.error(f"Error in disconnect handler: {str(e)}")
 
-    @socket_manager.on("get_user_status")
+    @socket_manager.on('get_user_status')
     async def get_user_status(sid, data):
         """Handle requests for user status"""
         try:
@@ -259,7 +272,7 @@ def register_socket_handlers(socket_manager):
         except Exception as e:
             logger.error(f"Error getting user status: {str(e)}")
 
-    @socket_manager.on("send_message")
+    @socket_manager.on('send_message')
     async def send_message(sid, data):
         """Handle new messages sent via Socket.IO"""
         try:
@@ -373,8 +386,8 @@ def register_socket_handlers(socket_manager):
                 "error", {"message": "Failed to send message"}, room=sid
             )
 
-    @socket_manager.on("join")
-    async def join_room(sid, data):
+    @socket_manager.on('join')
+    async def join(sid, data):
         try:
             conversation_id = data.get("conversation_id")
             if not conversation_id:
@@ -416,7 +429,7 @@ def register_socket_handlers(socket_manager):
         except Exception as e:
             logger.error(f"Error joining room: {str(e)}")
 
-    @socket_manager.on("typing_status")
+    @socket_manager.on('typing_status')
     async def typing_status(sid, data):
         """Handle typing status updates - optimized to use conversation rooms"""
         try:
@@ -454,7 +467,7 @@ def register_socket_handlers(socket_manager):
         except Exception as e:
             logger.error(f"Error updating typing status: {str(e)}")
 
-    @socket_manager.on("leave_conversation")
+    @socket_manager.on('leave_conversation')
     async def leave_conversation(sid, conversation_id):
         await socket_manager.leave_room(sid, conversation_id)
 

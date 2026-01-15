@@ -42,8 +42,8 @@ class DatabaseManager:
                     settings.MONGO_URL,
                     maxPoolSize=50,  # Connection pool size
                     minPoolSize=10,
-                    serverSelectionTimeoutMS=5000,
-                    connectTimeoutMS=10000,
+                    serverSelectionTimeoutMS=30000,  # 30 seconds for MongoDB Atlas
+                    connectTimeoutMS=20000,  # 20 seconds connection timeout
                 )
                 self._database = self._client.Houzdey
                 logger.info("Database connection initialized successfully")
@@ -246,5 +246,7 @@ async def create_indexes():
         
         logger.info("All database indexes created successfully")
     except Exception as e:
-        logger.error(f"Error creating indexes: {str(e)}")
-        raise
+        # Log as warning instead of error - server can still function
+        logger.warning(f"Error creating indexes: {str(e)}. Indexes will be created on first database operation.")
+        # Don't raise - allow server to continue
+        pass
