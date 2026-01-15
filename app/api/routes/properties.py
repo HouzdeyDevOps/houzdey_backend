@@ -1,15 +1,77 @@
-from fastapi import APIRouter, Depends, Query, UploadFile, File, Form, HTTPException, status
+from fastapi import APIRouter, Depends, Query, UploadFile, File, Form, HTTPException, status, Header
 from typing import List, Optional
 from fastapi.responses import JSONResponse, Response
 
 from app.api.deps import get_current_user
-from app.models.property import Property, PropertyUpdate, PropertyResponse, SortOrder, SortBy
+from app.models.property import Property, PropertyUpdate, PropertyResponse, SortOrder, SortBy, PropertyImport, PropertyImportResponse
 from app.services.property_service import PropertyService
 from app.core.dependencies import get_property_service
 from app.utils.cloudinary_config import upload_image_to_cloudinary, upload_video_to_cloudinary
+from app.core.config import settings
 import json
 
 router = APIRouter()
+
+
+@router.post("/import", response_model=PropertyImportResponse, status_code=status.HTTP_201_CREATED)
+async def import_property(
+    property_data: PropertyImport,
+    x_scraper_source: Optional[str] = Header(None, alias="X-Scraper-Source"),
+    x_api_key: Optional[str] = Header(None, alias="X-API-Key"),
+    property_service: PropertyService = Depends(get_property_service)
+):
+    """
+    Import a property from an external source (e.g., n8n scraper).
+
+    This endpoint is designed for automated property imports and accepts:
+    - JSON body with property details
+    - Image URLs (will be downloaded and uploaded to Cloudinary)
+    - Source tracking information
+
+    Authentication: Requires X-API-Key header matching SCRAPER_API_KEY env var,
+    or standard Bearer token authentication.
+    """
+    try:
+        # Validate API key for scraper access
+        scraper_api_key = getattr(settings, 'SCRAPER_API_KEY', None)
+        if scraper_api_key and x_api_key != scraper_api_key:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid API key for scraper access"
+            )
+
+        # Get the scraper bot owner ID from settings or use a default
+        owner_id = getattr(settings, 'SCRAPER_BOT_USER_ID', None)
+        if not owner_id:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="SCRAPER_BOT_USER_ID not configured. Please set this in your environment."
+            )
+
+        # Convert Pydantic model to dict
+        import_dict = property_data.model_dump()
+
+        # Override source if provided in header
+        if x_scraper_source:
+            import_dict["source"] = x_scraper_source
+
+        # Import the property
+        result = await property_service.import_property(import_dict, owner_id)
+
+        return PropertyImportResponse(
+            success=result["success"],
+            message=result["message"],
+            property_id=result.get("property_id"),
+            property_slug=result.get("property_slug")
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to import property: {str(e)}"
+        )
 
 
 @router.get("/users/me/properties")
@@ -72,12 +134,28 @@ async def get_properties(
         )
 
 
+@router.get("/slug/{slug:path}")
+async def get_property_by_slug(
+    slug: str,
+    property_service: PropertyService = Depends(get_property_service)
+):
+    """Get a property by SEO-friendly slug with owner and reviews information"""
+    try:
+        property_obj = await property_service.get_property_by_slug(slug)
+        return property_obj
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND if "not found" in str(e).lower() else status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
+        )
+
+
 @router.get("/{property_id}")
 async def get_property_by_id(
     property_id: str,
     property_service: PropertyService = Depends(get_property_service)
 ):
-    """Get a property by ID with owner and reviews information"""
+    """Get a property by ID with owner and reviews information (legacy support)"""
     try:
         property_obj = await property_service.get_property_by_id(property_id)
         return property_obj

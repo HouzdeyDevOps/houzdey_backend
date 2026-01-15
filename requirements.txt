@@ -16,7 +16,6 @@ ecdsa
 email_validator
 environs
 fastapi
-fastapi-socketio
 h11
 httpcore
 httpx
@@ -33,13 +32,13 @@ pydantic-settings
 pydantic_core
 pymongo
 python-dotenv
-python-engineio
+python-engineio>=4.9.0
 python-jose
 python-multipart
-python-socketio
+python-socketio>=5.11.0
 requests
 rsa
-simple-websocket
+simple-websocket==1.1.0
 six
 sniffio
 starlette

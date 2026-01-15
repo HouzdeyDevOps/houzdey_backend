@@ -42,22 +42,22 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 # Register error handlers
 register_error_handlers(app)
 
-socket_manager = init_socket_manager(app)
-register_socket_handlers(socket_manager)
-
-
-# Configure CORS with more permissive settings
+# Configure CORS BEFORE initializing socket manager
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Add your frontend URL
+    allow_origins=[
+        "http://localhost:3000",
+        "http://localhost:3001",
+        "http://127.0.0.1:3000",
+        "http://127.0.0.1:3001",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
     expose_headers=["*"],
 )
 
-
-# Include routers
+# Include routers FIRST
 @app.get(
     "/",
     include_in_schema=False,
@@ -70,6 +70,10 @@ def index():
 
 app.include_router(api_router, prefix=settings.API_V1_STR)
 
+# Initialize socket manager after ALL routes are registered
+socket_manager = init_socket_manager(app)
+register_socket_handlers(socket_manager)
+
 
 # @app.on_event("startup")
 # async def startup_event():
@@ -79,7 +83,19 @@ app.include_router(api_router, prefix=settings.API_V1_STR)
 
 @app.on_event("startup")
 async def startup_event():
-    await create_indexes()
+    try:
+        await create_indexes()
+    except Exception as e:
+        # Log the error but don't prevent server startup
+        # Indexes can be created later when DB connection is restored
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.warning(f"Could not create indexes on startup: {e}. Server will continue anyway.")
+
+# Wrap FastAPI app with Socket.IO (must be done after all routes/middleware are configured)
+import socketio
+# Replace the app variable with the Socket.IO wrapped version
+app = socketio.ASGIApp(socket_manager, app)
 
 # start the server
 if __name__ == "__main__":
