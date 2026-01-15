@@ -79,7 +79,8 @@ class Settings(BaseSettings):
     EMAILS_FROM_NAME: str = "houzdey"
     
     # SendGrid Settings
-    SENDGRID_API_KEY: str
+    TERMII_API_KEY: str
+    TERMII_BASE_URL: str = "https://v3.api.termii.com"
     EMAIL_FROM: str
 
     DESCRIPTION: str = "Houzdey APIs"
