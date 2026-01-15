@@ -24,14 +24,12 @@ Houzdey is an innovative rental property platform that connects tenants with lan
 - **Paystack API**: For secure payment processing
 - **Google Maps API**: For location-based services
 - **SlowAPI**: For API rate limiting and DDoS protection
-- **Poetry**: For dependency management and packaging
 
 ## 🏗 Getting Started
 
 ### Prerequisites
 
 - Python 3.8+
-- Poetry
 - MongoDB
 
 ### Installation
@@ -42,12 +40,23 @@ Houzdey is an innovative rental property platform that connects tenants with lan
    cd backend
    ```
 
-2. Install dependencies using Poetry:
-   ```
-   poetry install
+2. Create and activate a virtual environment:
+   ```bash
+   # Windows
+   python -m venv venv
+   venv\Scripts\activate
+
+   # macOS/Linux
+   python3 -m venv venv
+   source venv/bin/activate
    ```
 
-3. Set up environment variables:
+3. Install dependencies:
+   ```
+   pip install -r requirements.txt
+   ```
+
+4. Set up environment variables:
    Create a `.env` file in the root directory and add the following:
    ```
    MONGODB_URI=<your_mongodb_uri>
@@ -63,11 +72,6 @@ Houzdey is an innovative rental property platform that connects tenants with lan
    CLOUDINARY_API_SECRET=<your_cloudinary_api_secret>
    ```
 
-4. Activate the virtual environment:
-   ```
-   poetry shell
-   ```
-
 5. Start the FastAPI server:
    ```
    uvicorn main:app --reload
@@ -80,7 +84,7 @@ Houzdey is an innovative rental property platform that connects tenants with lan
 Run the test suite with:
 
 ```
-poetry run pytest
+pytest
 ```
 
 ## 🚢 Deployment
@@ -88,12 +92,11 @@ poetry run pytest
 1. Choose a cloud platform (e.g., AWS, Render, or DigitalOcean).
 2. Set up a MongoDB instance (e.g., MongoDB Atlas).
 3. Configure environment variables on your chosen platform.
-4. Ensure Poetry is installed on your deployment environment.
-5. Use Poetry to install dependencies:
+4. Install dependencies:
    ```
-   poetry install --no-dev
+   pip install -r requirements.txt
    ```
-6. Deploy the FastAPI application using platform-specific instructions.
+5. Deploy the FastAPI application using platform-specific instructions.
 
 ## 🌐 API Documentation
 

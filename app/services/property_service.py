@@ -1,6 +1,8 @@
 from typing import Dict, List, Optional, Any, Tuple
 from datetime import datetime
 from math import ceil
+import json
+import httpx
 
 from app.services.base_service import BaseService
 from app.repositories.property_repository import PropertyRepository
@@ -299,22 +301,128 @@ class PropertyService(BaseService):
         """Update property status"""
         if not self.validate_object_id(property_id):
             raise ValidationError("Invalid property ID format")
-        
+
         # Validate status
         valid_statuses = ["available", "unavailable", "draft", "pending approval"]
         if status.lower() not in valid_statuses:
             raise ValidationError(f"Invalid status. Must be one of: {', '.join(valid_statuses)}")
-        
+
         # Get existing property
         property_obj = await self.property_repo.get_by_id(property_id)
         self.ensure_exists(property_obj, "Property")
-        
+
         # Check ownership
         self.check_ownership(property_obj["owner_id"], current_user_id)
-        
+
         # Update status
         success = await self.property_repo.update_status(property_id, status.lower())
         if not success:
             raise BusinessLogicError("Failed to update property status")
-        
+
         return {"message": "Property status updated successfully"}
+
+    async def import_property(self, import_data: Dict[str, Any], owner_id: str) -> Dict[str, Any]:
+        """
+        Import a property from an external source (e.g., n8n scraper).
+        Handles image URLs and source tracking.
+        """
+        if not self.validate_object_id(owner_id):
+            raise ValidationError("Invalid owner ID format")
+
+        # Parse amenities from JSON string
+        amenities_list = []
+        if import_data.get("amenities"):
+            try:
+                amenities_list = json.loads(import_data["amenities"])
+            except (json.JSONDecodeError, TypeError):
+                amenities_list = []
+
+        # Parse image URLs from JSON string
+        image_urls = []
+        if import_data.get("image_urls"):
+            try:
+                image_urls = json.loads(import_data["image_urls"])
+            except (json.JSONDecodeError, TypeError):
+                image_urls = []
+
+        # Download and upload images to Cloudinary
+        uploaded_images = await self._download_and_upload_images(image_urls)
+
+        # Check for duplicate by source_id
+        if import_data.get("source_id"):
+            existing = await self.property_repo.find_one({
+                "source_id": import_data["source_id"],
+                "source": import_data.get("source", "external")
+            })
+            if existing:
+                raise BusinessLogicError(f"Property already imported with source_id: {import_data['source_id']}")
+
+        # Prepare property data
+        property_data = {
+            "title": import_data["title"],
+            "type": import_data["type"],
+            "price": import_data["price"],
+            "description": import_data["description"],
+            "beds": import_data.get("beds", 0),
+            "baths": import_data.get("baths", 0),
+            "toilets": import_data.get("toilets", 0),
+            "condition": import_data.get("condition", "fairly-used"),
+            "furnishing": import_data.get("furnishing", "unfurnished"),
+            "address": import_data["address"],
+            "state": import_data["state"],
+            "lga": import_data["lga"],
+            "ward": import_data.get("ward", ""),
+            "estate": import_data.get("estate"),
+            "size": import_data.get("size"),
+            "listing_type": import_data.get("listing_type", "rent"),
+            "amenities": amenities_list,
+            "images": uploaded_images,
+            "status": import_data.get("status", "pending approval"),
+            "agency_fee": import_data.get("agency_fee"),
+            "legal_fee": import_data.get("legal_fee"),
+            "other_fees": import_data.get("other_fees"),
+            # Source tracking
+            "source": import_data.get("source", "external"),
+            "source_url": import_data.get("source_url"),
+            "source_id": import_data.get("source_id"),
+        }
+
+        # Use the existing create_property method
+        created_property = await self.create_property(property_data, owner_id)
+
+        return {
+            "success": True,
+            "message": "Property imported successfully",
+            "property_id": created_property.get("id"),
+            "property_slug": created_property.get("slug"),
+            "images_uploaded": len(uploaded_images)
+        }
+
+    async def _download_and_upload_images(self, image_urls: List[str], max_images: int = 10) -> List[str]:
+        """Download images from URLs and upload to Cloudinary"""
+        from app.utils.cloudinary_config import upload_image_to_cloudinary
+
+        uploaded_urls = []
+
+        # Limit number of images
+        urls_to_process = image_urls[:max_images]
+
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            for url in urls_to_process:
+                try:
+                    # Download image
+                    response = await client.get(url)
+                    if response.status_code == 200:
+                        # Upload to Cloudinary
+                        cloudinary_url = await upload_image_to_cloudinary(
+                            response.content,
+                            "properties/imported"
+                        )
+                        if cloudinary_url:
+                            uploaded_urls.append(cloudinary_url)
+                except Exception as e:
+                    # Log error but continue with other images
+                    print(f"Failed to download/upload image {url}: {str(e)}")
+                    continue
+
+        return uploaded_urls

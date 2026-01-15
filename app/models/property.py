@@ -108,3 +108,41 @@ class PropertyUpdate(BaseModel):
     other_fees: Optional[float]
     facilities: Optional[List[str]]
     listing_by: Optional[str]
+
+
+class PropertyImport(BaseModel):
+    """Model for importing properties from external sources (e.g., scrapers)"""
+    title: str
+    type: str
+    price: float
+    description: str
+    beds: int = 0
+    baths: int = 0
+    toilets: int = 0
+    condition: str = "fairly-used"
+    furnishing: str = "unfurnished"
+    address: str
+    state: str
+    lga: str
+    ward: str = ""
+    estate: Optional[str] = None
+    listing_type: str = "rent"
+    amenities: str = "[]"  # JSON string of amenities
+    image_urls: str = "[]"  # JSON string of image URLs
+    status: str = "pending approval"
+    agency_fee: Optional[float] = None
+    legal_fee: Optional[float] = None
+    other_fees: Optional[float] = None
+    size: Optional[str] = None
+    # Source tracking fields
+    source: str = "external"  # e.g., "nigeriapropertycentre"
+    source_url: Optional[str] = None
+    source_id: Optional[str] = None
+
+
+class PropertyImportResponse(BaseModel):
+    """Response model for property import"""
+    success: bool
+    message: str
+    property_id: Optional[str] = None
+    property_slug: Optional[str] = None
