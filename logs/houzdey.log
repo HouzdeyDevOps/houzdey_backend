@@ -2249,3 +2249,78 @@ pymongo.errors._OperationCancelled: operation cancelled
 2026-01-15 11:24:57,531 - app.api.socket_manager - INFO - Socket.IO server initialized (socket_manager.py:26)
 2026-01-15 11:25:01,668 - app.core.database - INFO - All database indexes created successfully (database.py:247)
 2026-01-15 11:27:11,256 - app.core.error_handlers - WARNING - Validation error: [{'type': 'missing', 'loc': ('body',), 'msg': 'Field required', 'input': None}] - Path: /api/v1/properties/import - Method: POST (error_handlers.py:44)
+2026-01-15 14:17:32,560 - pymongo.client - ERROR - MongoClient background task encountered an error: (logger.py:104)
+Traceback (most recent call last):
+  File "C:\Users\ccharles\Desktop\Houzdey Projects\houzdey_web\backend\venv\Lib\site-packages\pymongo\synchronous\pool.py", line 413, in command
+    return command(
+           ^^^^^^^^
+  File "C:\Users\ccharles\Desktop\Houzdey Projects\houzdey_web\backend\venv\Lib\site-packages\pymongo\synchronous\network.py", line 198, in command
+    reply = receive_message(conn, request_id)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\ccharles\Desktop\Houzdey Projects\houzdey_web\backend\venv\Lib\site-packages\pymongo\network_layer.py", line 759, in receive_message
+    length, _, response_to, op_code = _UNPACK_HEADER(receive_data(conn, 16, deadline))
+                                                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\ccharles\Desktop\Houzdey Projects\houzdey_web\backend\venv\Lib\site-packages\pymongo\network_layer.py", line 379, in receive_data
+    raise OSError("connection closed")
+OSError: connection closed
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\ccharles\Desktop\Houzdey Projects\houzdey_web\backend\venv\Lib\site-packages\pymongo\synchronous\mongo_client.py", line 2248, in _process_periodic_tasks
+    self._topology.update_pool()
+  File "C:\Users\ccharles\Desktop\Houzdey Projects\houzdey_web\backend\venv\Lib\site-packages\pymongo\synchronous\topology.py", line 688, in update_pool
+    server.pool.remove_stale_sockets(generation)
+  File "C:\Users\ccharles\Desktop\Houzdey Projects\houzdey_web\backend\venv\Lib\site-packages\pymongo\synchronous\pool.py", line 978, in remove_stale_sockets
+    conn = self.connect()
+           ^^^^^^^^^^^^^^
+  File "C:\Users\ccharles\Desktop\Houzdey Projects\houzdey_web\backend\venv\Lib\site-packages\pymongo\synchronous\pool.py", line 1072, in connect
+    conn.authenticate()
+  File "C:\Users\ccharles\Desktop\Houzdey Projects\houzdey_web\backend\venv\Lib\site-packages\pymongo\synchronous\pool.py", line 525, in authenticate
+    auth.authenticate(creds, self, reauthenticate=reauthenticate)
+  File "C:\Users\ccharles\Desktop\Houzdey Projects\houzdey_web\backend\venv\Lib\site-packages\pymongo\synchronous\auth.py", line 450, in authenticate
+    auth_func(credentials, conn)
+  File "C:\Users\ccharles\Desktop\Houzdey Projects\houzdey_web\backend\venv\Lib\site-packages\pymongo\synchronous\auth.py", line 355, in _authenticate_default
+    return _authenticate_scram(credentials, conn, "SCRAM-SHA-1")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\ccharles\Desktop\Houzdey Projects\houzdey_web\backend\venv\Lib\site-packages\pymongo\synchronous\auth.py", line 135, in _authenticate_scram
+    res = conn.command(source, cmd)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\ccharles\Desktop\Houzdey Projects\houzdey_web\backend\venv\Lib\site-packages\pymongo\synchronous\helpers.py", line 47, in inner
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\ccharles\Desktop\Houzdey Projects\houzdey_web\backend\venv\Lib\site-packages\pymongo\synchronous\pool.py", line 441, in command
+    self._raise_connection_failure(error)
+  File "C:\Users\ccharles\Desktop\Houzdey Projects\houzdey_web\backend\venv\Lib\site-packages\pymongo\synchronous\pool.py", line 643, in _raise_connection_failure
+    _raise_connection_failure(self.address, error, timeout_details=details)
+  File "C:\Users\ccharles\Desktop\Houzdey Projects\houzdey_web\backend\venv\Lib\site-packages\pymongo\pool_shared.py", line 150, in _raise_connection_failure
+    raise AutoReconnect(msg) from error
+pymongo.errors.AutoReconnect: ac-x7tsagz-shard-00-00.f4a3e6r.mongodb.net:27017: connection closed (configured timeouts: connectTimeoutMS: 20000.0ms)
+2026-01-15 15:20:54,643 - engineio.server - INFO - Server initialized for asgi. (base_server.py:112)
+2026-01-15 15:20:54,644 - app.api.socket_manager - INFO - Socket.IO server initialized (socket_manager.py:26)
+2026-01-15 15:20:59,189 - app.core.database - INFO - All database indexes created successfully (database.py:247)
+2026-01-15 16:56:51,509 - engineio.server - INFO - Server initialized for asgi. (base_server.py:112)
+2026-01-15 16:56:51,510 - app.api.socket_manager - INFO - Socket.IO server initialized (socket_manager.py:26)
+2026-01-15 16:57:05,330 - app.core.database - INFO - All database indexes created successfully (database.py:247)
+2026-01-15 16:58:51,883 - engineio.server - INFO - Server initialized for asgi. (base_server.py:112)
+2026-01-15 16:58:51,884 - app.api.socket_manager - INFO - Socket.IO server initialized (socket_manager.py:26)
+2026-01-15 16:58:59,830 - app.core.database - INFO - All database indexes created successfully (database.py:247)
+2026-01-15 17:03:37,823 - app.core.error_handlers - WARNING - HTTP exception: ac-x7tsagz-shard-00-02.f4a3e6r.mongodb.net:27017: timed out (configured timeouts: socketTimeoutMS: 20000.0ms, connectTimeoutMS: 20000.0ms),ac-x7tsagz-shard-00-01.f4a3e6r.mongodb.net:27017: timed out (configured timeouts: socketTimeoutMS: 20000.0ms, connectTimeoutMS: 20000.0ms),ac-x7tsagz-shard-00-00.f4a3e6r.mongodb.net:27017: timed out (configured timeouts: socketTimeoutMS: 20000.0ms, connectTimeoutMS: 20000.0ms), Timeout: 30.0s, Topology Description: <TopologyDescription id: 69690eba6a8829699a06d08b, topology_type: ReplicaSetNoPrimary, servers: [<ServerDescription ('ac-x7tsagz-shard-00-00.f4a3e6r.mongodb.net', 27017) server_type: Unknown, rtt: None, error=NetworkTimeout('ac-x7tsagz-shard-00-00.f4a3e6r.mongodb.net:27017: timed out (configured timeouts: socketTimeoutMS: 20000.0ms, connectTimeoutMS: 20000.0ms)')>, <ServerDescription ('ac-x7tsagz-shard-00-01.f4a3e6r.mongodb.net', 27017) server_type: Unknown, rtt: None, error=NetworkTimeout('ac-x7tsagz-shard-00-01.f4a3e6r.mongodb.net:27017: timed out (configured timeouts: socketTimeoutMS: 20000.0ms, connectTimeoutMS: 20000.0ms)')>, <ServerDescription ('ac-x7tsagz-shard-00-02.f4a3e6r.mongodb.net', 27017) server_type: Unknown, rtt: None, error=NetworkTimeout('ac-x7tsagz-shard-00-02.f4a3e6r.mongodb.net:27017: timed out (configured timeouts: socketTimeoutMS: 20000.0ms, connectTimeoutMS: 20000.0ms)')>]> - Status: 500 - Path: /api/v1/properties - Method: GET (error_handlers.py:74)
+2026-01-15 17:08:35,520 - app.core.error_handlers - WARNING - HTTP exception: Could not validate credentials - Status: 403 - Path: /api/v1/users/me - Method: GET (error_handlers.py:74)
+2026-01-15 17:08:35,869 - app.core.error_handlers - WARNING - HTTP exception: Invalid or expired refresh token - Status: 401 - Path: /api/v1/users/refresh - Method: POST (error_handlers.py:74)
+2026-01-15 17:08:53,457 - engineio.server - INFO - Server initialized for asgi. (base_server.py:112)
+2026-01-15 17:08:53,458 - app.api.socket_manager - INFO - Socket.IO server initialized (socket_manager.py:26)
+2026-01-15 17:08:57,739 - app.core.database - INFO - All database indexes created successfully (database.py:247)
+2026-01-15 17:38:46,297 - app.core.error_handlers - WARNING - HTTP exception: 404: Property not found - Status: 500 - Path: /api/v1/properties/6969148afb5817b29a33680e - Method: GET (error_handlers.py:74)
+2026-01-15 17:41:25,841 - engineio.server - INFO - Server initialized for asgi. (base_server.py:112)
+2026-01-15 17:41:25,841 - app.api.socket_manager - INFO - Socket.IO server initialized (socket_manager.py:26)
+2026-01-15 17:41:31,158 - app.core.database - INFO - All database indexes created successfully (database.py:247)
+2026-01-15 18:02:32,958 - engineio.server - INFO - Server initialized for asgi. (base_server.py:112)
+2026-01-15 18:02:32,960 - app.api.socket_manager - INFO - Socket.IO server initialized (socket_manager.py:26)
+2026-01-15 18:02:39,905 - app.core.database - INFO - All database indexes created successfully (database.py:247)
+2026-01-15 18:02:43,012 - engineio.server - INFO - Server initialized for asgi. (base_server.py:112)
+2026-01-15 18:02:43,013 - app.api.socket_manager - INFO - Socket.IO server initialized (socket_manager.py:26)
+2026-01-15 18:02:47,092 - app.core.database - INFO - All database indexes created successfully (database.py:247)
+2026-01-15 18:02:50,399 - engineio.server - INFO - Server initialized for asgi. (base_server.py:112)
+2026-01-15 18:02:50,400 - app.api.socket_manager - INFO - Socket.IO server initialized (socket_manager.py:26)
+2026-01-15 18:02:55,895 - app.core.database - INFO - All database indexes created successfully (database.py:247)

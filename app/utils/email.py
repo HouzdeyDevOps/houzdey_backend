@@ -4,11 +4,10 @@ from app.core.config import settings
 from jinja2 import Template
 from typing import Any
 from datetime import datetime
-from sendgrid import SendGridAPIClient
-from sendgrid.helpers.mail import Mail, Email, To, Content
 import logging
 
 logger = logging.getLogger(__name__)
+
 
 @dataclass
 class EmailData:
@@ -57,30 +56,53 @@ def generate_reset_password_email(email_to: str, email: str, token: str):
     return EmailData(html_content=html_content, subject=subject)
 
 async def send_email(email_to: str, subject: str, html_content: str):
-    """Send email using SendGrid API"""
+    """Send email using Termii API"""
+    import httpx
+    
     try:
-        # Create SendGrid message
-        message = Mail(
-            from_email=Email(settings.EMAIL_FROM, "Houzdey"),
-            to_emails=To(email_to),
-            subject=subject,
-            html_content=Content("text/html", html_content)
-        )
+        # Prepare Termii email payload
+        payload = {
+            "api_key": settings.TERMII_API_KEY,
+            "email_address": email_to,
+            "code": subject,  # Termii uses 'code' field for subject in some endpoints
+            "email_configuration_id": settings.EMAIL_FROM,  # Your verified sender email
+        }
         
-        # Send email using SendGrid API
-        sg = SendGridAPIClient(settings.SENDGRID_API_KEY)
-        response = sg.send(message)
+        # For HTML emails, use Termii's email endpoint
+        url = f"{settings.TERMII_BASE_URL}/api/email/send"
         
-        logger.info(f"Email sent successfully to {email_to} - Status: {response.status_code}")
-        print(f"Email sent successfully to {email_to} - Status: {response.status_code}")
+        # Prepare the full email payload
+        email_payload = {
+            "api_key": settings.TERMII_API_KEY,
+            "from": settings.EMAIL_FROM,
+            "to": email_to,
+            "subject": subject,
+            "html": html_content,
+        }
         
-        return response
+        # Send email using Termii API
+        async with httpx.AsyncClient() as client:
+            response = await client.post(url, json=email_payload, timeout=30.0)
+            response.raise_for_status()
+            
+            result = response.json()
+            
+            logger.info(f"Email sent successfully to {email_to} via Termii - Response: {result}")
+            print(f"Email sent successfully to {email_to} via Termii - Response: {result}")
+            
+            return result
         
-    except Exception as e:
-        error_msg = f"Failed to send email via SendGrid: {str(e)}"
+    except httpx.HTTPStatusError as e:
+        error_msg = f"Termii API error: {e.response.status_code} - {e.response.text}"
         logger.error(error_msg)
         print(error_msg)
         raise Exception(error_msg)
+    except Exception as e:
+        error_msg = f"Failed to send email via Termii: {str(e)}"
+        logger.error(error_msg)
+        print(error_msg)
+        raise Exception(error_msg)
+
 
 def generate_verification_code_email(email_to: str, code: str, purpose: str = "verification") -> EmailData:
     """Generate verification code email"""
