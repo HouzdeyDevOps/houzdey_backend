@@ -138,6 +138,9 @@ class PropertyImport(BaseModel):
     source: str = "external"  # e.g., "nigeriapropertycentre"
     source_url: Optional[str] = None
     source_id: Optional[str] = None
+    # Agent details
+    agent_name: Optional[str] = None
+    agent_phone: Optional[str] = None
 
 
 class PropertyImportResponse(BaseModel):

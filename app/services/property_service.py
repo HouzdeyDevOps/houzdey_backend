@@ -381,6 +381,9 @@ class PropertyService(BaseService):
             "agency_fee": import_data.get("agency_fee"),
             "legal_fee": import_data.get("legal_fee"),
             "other_fees": import_data.get("other_fees"),
+            # Agent details
+            "agent_name": import_data.get("agent_name"),
+            "agent_phone": import_data.get("agent_phone"),
             # Source tracking
             "source": import_data.get("source", "external"),
             "source_url": import_data.get("source_url"),

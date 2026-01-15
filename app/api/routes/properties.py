@@ -50,6 +50,7 @@ async def import_property(
 
         # Convert Pydantic model to dict
         import_dict = property_data.model_dump()
+        
 
         # Override source if provided in header
         if x_scraper_source:
