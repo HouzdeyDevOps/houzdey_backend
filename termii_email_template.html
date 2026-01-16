@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{subject}}</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f4f4f4;
+        }
+        .container {
+            background-color: #ffffff;
+            border-radius: 10px;
+            padding: 40px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .logo {
+            max-width: 150px;
+            margin-bottom: 20px;
+        }
+        h1 {
+            color: #2c3e50;
+            font-size: 24px;
+            margin-bottom: 20px;
+        }
+        .code-box {
+            background-color: #f8f9fa;
+            border: 2px dashed #007bff;
+            border-radius: 8px;
+            padding: 20px;
+            text-align: center;
+            margin: 30px 0;
+        }
+        .code {
+            font-size: 32px;
+            font-weight: bold;
+            color: #007bff;
+            letter-spacing: 5px;
+            font-family: 'Courier New', monospace;
+        }
+        .message {
+            color: #555;
+            font-size: 16px;
+            margin-bottom: 20px;
+        }
+        .footer {
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid #eee;
+            text-align: center;
+            color: #888;
+            font-size: 14px;
+        }
+        .button {
+            display: inline-block;
+            padding: 12px 30px;
+            background-color: #007bff;
+            color: #ffffff;
+            text-decoration: none;
+            border-radius: 5px;
+            margin: 20px 0;
+            font-weight: bold;
+        }
+        .warning {
+            background-color: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <img src="https://res.cloudinary.com/disbboeb4/image/upload/v1762463832/houzdey-logo_aqofgf.png" alt="Houzdey Logo" class="logo">
+            <h1>{{title}}</h1>
+        </div>
+
+        <p class="message">{{message}}</p>
+
+        <div class="code-box">
+            <div class="code">{{code}}</div>
+        </div>
+
+        <p style="text-align: center; color: #666;">
+            This code will expire in <strong>{{expiry_minutes}} minutes</strong>
+        </p>
+
+        <div class="warning">
+            <strong>⚠️ Security Notice:</strong> Never share this code with anyone. Houzdey will never ask for your verification code.
+        </div>
+
+        <div class="footer">
+            <p><strong>Houzdey</strong> - Your Trusted Property Platform</p>
+            <p>
+                <a href="https://www.facebook.com/people/Houzdey/61583662165446/" style="color: #007bff; text-decoration: none; margin: 0 10px;">Facebook</a> |
+                <a href="https://www.instagram.com/houzdey/" style="color: #007bff; text-decoration: none; margin: 0 10px;">Instagram</a>
+            </p>
+            <p style="font-size: 12px; color: #999;">
+                If you didn't request this code, please ignore this email.
+            </p>
+        </div>
+    </div>
+</body>
+</html>

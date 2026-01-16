@@ -56,51 +56,43 @@ def generate_reset_password_email(email_to: str, email: str, token: str):
     return EmailData(html_content=html_content, subject=subject)
 
 async def send_email(email_to: str, subject: str, html_content: str):
-    """Send email using Termii API"""
-    import httpx
+    """Send email using Brevo SMTP"""
+    import smtplib
+    from email.mime.text import MIMEText
+    from email.mime.multipart import MIMEMultipart
     
     try:
-        # Prepare Termii email payload
-        payload = {
-            "api_key": settings.TERMII_API_KEY,
-            "email_address": email_to,
-            "code": subject,  # Termii uses 'code' field for subject in some endpoints
-            "email_configuration_id": settings.EMAIL_FROM,  # Your verified sender email
-        }
+        # Brevo SMTP settings
+        smtp_server = "smtp-relay.brevo.com"
+        smtp_port = 587
+        smtp_username = settings.BREVO_SMTP_USERNAME  # Your Brevo login email
+        smtp_password = settings.BREVO_SMTP_PASSWORD  # Your Brevo SMTP key
         
-        # For HTML emails, use Termii's email endpoint
-        url = f"{settings.TERMII_BASE_URL}/api/email/send"
+        # Create message
+        message = MIMEMultipart("alternative")
+        message["Subject"] = subject
+        message["From"] = settings.EMAIL_FROM
+        message["To"] = email_to
         
-        # Prepare the full email payload
-        email_payload = {
-            "api_key": settings.TERMII_API_KEY,
-            "from": settings.EMAIL_FROM,
-            "to": email_to,
-            "subject": subject,
-            "html": html_content,
-        }
+        # Attach HTML content
+        html_part = MIMEText(html_content, "html")
+        message.attach(html_part)
         
-        # Send email using Termii API
-        async with httpx.AsyncClient() as client:
-            response = await client.post(url, json=email_payload, timeout=30.0)
-            response.raise_for_status()
-            
-            result = response.json()
-            
-            logger.info(f"Email sent successfully to {email_to} via Termii - Response: {result}")
-            print(f"Email sent successfully to {email_to} via Termii - Response: {result}")
-            
-            return result
+        # Send email
+        with smtplib.SMTP(smtp_server, smtp_port) as server:
+            server.starttls()
+            server.login(smtp_username, smtp_password)
+            server.send_message(message)
         
-    except httpx.HTTPStatusError as e:
-        error_msg = f"Termii API error: {e.response.status_code} - {e.response.text}"
-        logger.error(error_msg)
-        print(error_msg)
-        raise Exception(error_msg)
+        logger.info(f"Email sent successfully to {email_to} via Brevo SMTP")
+        print(f"✅ Email sent successfully to {email_to} via Brevo SMTP")
+        
+        return {"status": "success", "message": "Email sent"}
+        
     except Exception as e:
-        error_msg = f"Failed to send email via Termii: {str(e)}"
+        error_msg = f"Failed to send email via Brevo SMTP: {str(e)}"
         logger.error(error_msg)
-        print(error_msg)
+        print(f"❌ {error_msg}")
         raise Exception(error_msg)
 
 
