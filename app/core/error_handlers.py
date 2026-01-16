@@ -26,16 +26,21 @@ async def base_app_exception_handler(request: Request, exc: BaseAppException) ->
         f"Application exception: {exc.detail} - Path: {request.url.path} - Method: {request.method}"
     )
     
+    # Build error response
+    error_content = {
+        "type": exc.__class__.__name__,
+        "message": exc.detail,
+        "path": request.url.path,
+        "method": request.method
+    }
+    
+    # Include extra_data if available (e.g., email for unverified accounts)
+    if hasattr(exc, 'extra_data') and exc.extra_data:
+        error_content.update(exc.extra_data)
+    
     return JSONResponse(
         status_code=exc.status_code,
-        content={
-            "error": {
-                "type": exc.__class__.__name__,
-                "message": exc.detail,
-                "path": request.url.path,
-                "method": request.method
-            }
-        }
+        content={"error": error_content}
     )
 
 

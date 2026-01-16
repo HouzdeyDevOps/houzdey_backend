@@ -78,10 +78,15 @@ class Settings(BaseSettings):
     EMAIL_VERIFY_EMAIL_EXPIRE_MINUTES: int = 60 * 24 * 8
     EMAILS_FROM_NAME: str = "houzdey"
     
-    # SendGrid Settings
+    # Brevo SMTP Settings
+    BREVO_SMTP_USERNAME: str  # Your Brevo login email
+    BREVO_SMTP_PASSWORD: str  # Your Brevo SMTP key/password
+    EMAIL_FROM: str
+    
+    # Termii SMS Settings
     TERMII_API_KEY: str
     TERMII_BASE_URL: str = "https://v3.api.termii.com"
-    EMAIL_FROM: str
+    TERMII_SENDER_ID: str = "Houzdey"  # Your approved sender ID from Termii
 
     DESCRIPTION: str = "Houzdey APIs"
 

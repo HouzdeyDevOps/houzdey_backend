@@ -34,8 +34,9 @@ class PermissionError(BaseAppException):
 class AuthenticationError(BaseAppException):
     """Exception raised for authentication errors"""
     
-    def __init__(self, detail: str):
+    def __init__(self, detail: str, extra_data: dict = None):
         super().__init__(detail=detail, status_code=status.HTTP_401_UNAUTHORIZED)
+        self.extra_data = extra_data or {}
 
 
 class ConflictError(BaseAppException):

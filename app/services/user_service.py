@@ -8,6 +8,7 @@ from app.core.exceptions import ValidationError, NotFoundError, ConflictError, A
 from app.core.security import get_password_hash, verify_password
 from app.core.config import settings
 from app.utils.email import send_verification_code
+from app.utils.sms import send_sms_otp
 
 
 class UserService(BaseService):
@@ -81,7 +82,18 @@ class UserService(BaseService):
         
         # Check if user is active
         if not user.get("is_active", False):
-            raise AuthenticationError("Account is not active")
+            # Auto-resend verification code
+            try:
+                await self.resend_verification_code(email)
+                print(f"✉️  Verification code auto-resent to {email}")
+            except Exception as e:
+                print(f"⚠️  Failed to auto-resend verification code: {str(e)}")
+            
+            # Raise error with email for frontend handling
+            raise AuthenticationError(
+                "Please verify your email before signing in",
+                extra_data={"email": email}
+            )
         
         # Update last seen
         await self.user_repo.update_by_id(user["id"], {
@@ -342,3 +354,41 @@ class UserService(BaseService):
             user.pop("reset_code", None)
         
         return users
+
+
+    async def send_phone_otp(self, user_id: str, phone_number: str):
+        """Send OTP to phone number"""
+        # Generate 6-digit OTP
+        otp = self.generate_verification_code()
+        
+        # Store OTP in database
+        await self.user_repo.update_by_id(user_id, {
+            "phone_otp": otp,
+            "phone_otp_expiry": datetime.utcnow() + timedelta(minutes=10)
+        })
+        
+        # Send SMS via Termii
+        await send_sms_otp(phone_number, otp)
+        
+        return {"message": "OTP sent successfully"}
+    async def verify_phone_otp(self, user_id: str, phone_number: str, otp: str):
+        """Verify phone OTP"""
+        user = await self.user_repo.get_by_id(user_id)
+        
+        # Check OTP
+        if user.get("phone_otp") != otp:
+            raise ValidationError("Invalid OTP")
+        
+        # Check expiry
+        if user.get("phone_otp_expiry") < datetime.utcnow():
+            raise ValidationError("OTP has expired")
+        
+        # Update phone verification status
+        await self.user_repo.update_by_id(user_id, {
+            "phone_number": phone_number,
+            "phone_verified": True,
+            "phone_otp": None,
+            "phone_otp_expiry": None
+        })
+        
+        return {"message": "Phone verified successfully"}

@@ -10,6 +10,7 @@ from app.services.user_service import UserService
 from app.core.dependencies import get_user_service
 from app.api.deps import get_current_user
 from app.core.security import create_token, create_refresh_token, verify_refresh_token, oauth2_scheme
+from app.core.exceptions import AuthenticationError
 from app.utils.cloudinary_config import upload_image_to_cloudinary, delete_image_from_cloudinary, extract_public_id_from_url
 from app.repositories.token_repository import TokenRepository
 
@@ -113,6 +114,8 @@ async def login_user(
             "token_type": "bearer",
             "user": user
         }
+    except AuthenticationError as e:
+        raise e
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -412,3 +415,31 @@ async def update_chat_status(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=str(e)
         )
+
+
+@router.post("/phone/send-otp")
+async def send_phone_otp(
+    phone_number: str = Form(...),
+    current_user: dict = Depends(get_current_user),
+    user_service: UserService = Depends(get_user_service)
+):
+    """Send OTP to phone number"""
+    result = await user_service.send_phone_otp(
+        current_user["id"], 
+        phone_number
+    )
+    return result
+@router.post("/phone/verify")
+async def verify_phone_number(
+    phone_number: str = Form(...),
+    otp: str = Form(...),
+    current_user: dict = Depends(get_current_user),
+    user_service: UserService = Depends(get_user_service)
+):
+    """Verify phone number with OTP"""
+    result = await user_service.verify_phone_otp(
+        current_user["id"],
+        phone_number,
+        otp
+    )
+    return result

@@ -47,3 +47,4 @@ urllib3
 uvicorn
 wsproto
 slowapi
+beautifulsoup4
