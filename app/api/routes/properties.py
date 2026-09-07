@@ -188,7 +188,7 @@ async def create_property(
     address: str = Form(...),
     state: str = Form(...),
     lga: str = Form(...),
-    ward: str = Form(...),
+    ward: str = Form(default=""),
     estate: str = Form(None),
     size: str = Form(None),
     property_status: str = Form(default="available", alias="status"),
