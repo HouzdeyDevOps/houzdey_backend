@@ -177,6 +177,7 @@ async def create_property(
     sale_price: Optional[float] = Form(None),
     agency_fee: Optional[float] = Form(None),
     legal_fee: Optional[float] = Form(None),
+    caution_fee: Optional[float] = Form(None),
     other_fees: Optional[float] = Form(None),
     description: str = Form(...),
     amenities: str = Form(...),
@@ -208,18 +209,29 @@ async def create_property(
                 detail="Invalid amenities format"
             )
         
-        # Upload images to Cloudinary
-        image_urls = []
-        for image in images:
+        # Upload images and video to Cloudinary concurrently
+        import asyncio
+
+        async def upload_one_image(image):
             contents = await image.read()
-            url = await upload_image_to_cloudinary(contents, "properties")
-            image_urls.append(url)
-        
-        # Upload video to Cloudinary (optional)
-        video_url = None
+            return await upload_image_to_cloudinary(contents, "properties")
+
+        async def upload_video():
+            contents = await video.read()
+            return await upload_video_to_cloudinary(contents, "properties")
+
+        tasks = [upload_one_image(img) for img in images]
         if video:
-            video_contents = await video.read()
-            video_url = await upload_video_to_cloudinary(video_contents, "properties")
+            tasks.append(upload_video())
+
+        results = await asyncio.gather(*tasks)
+
+        if video:
+            image_urls = list(results[:-1])
+            video_url = results[-1]
+        else:
+            image_urls = list(results)
+            video_url = None
         
         # Prepare property data
         property_data = {
@@ -231,6 +243,7 @@ async def create_property(
             "sale_price": sale_price,
             "agency_fee": agency_fee,
             "legal_fee": legal_fee,
+            "caution_fee": caution_fee,
             "other_fees": other_fees,
             "description": description,
             "amenities": amenities_list,
@@ -274,6 +287,7 @@ async def update_property(
     sale_price: Optional[float] = Form(None),
     agency_fee: Optional[float] = Form(None),
     legal_fee: Optional[float] = Form(None),
+    caution_fee: Optional[float] = Form(None),
     other_fees: Optional[float] = Form(None),
     description: Optional[str] = Form(None),
     amenities: Optional[str] = Form(None),
@@ -315,6 +329,8 @@ async def update_property(
             update_data["agency_fee"] = agency_fee
         if legal_fee is not None:
             update_data["legal_fee"] = legal_fee
+        if caution_fee is not None:
+            update_data["caution_fee"] = caution_fee
         if other_fees is not None:
             update_data["other_fees"] = other_fees
         if description is not None:
