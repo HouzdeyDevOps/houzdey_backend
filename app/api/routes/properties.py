@@ -1,14 +1,15 @@
-from fastapi import APIRouter, Depends, Query, UploadFile, File, Form, HTTPException, status, Header
-from typing import List, Optional
-from fastapi.responses import JSONResponse, Response
+import json
+from typing import Optional
+
+from fastapi import APIRouter, Depends, File, Form, Header, HTTPException, Query, UploadFile, status
+from fastapi.responses import Response
 
 from app.api.deps import get_current_user
-from app.models.property import Property, PropertyUpdate, PropertyResponse, SortOrder, SortBy, PropertyImport, PropertyImportResponse
-from app.services.property_service import PropertyService
-from app.core.dependencies import get_property_service
-from app.utils.cloudinary_config import upload_image_to_cloudinary, upload_video_to_cloudinary
 from app.core.config import settings
-import json
+from app.core.dependencies import get_property_service
+from app.models.property import PropertyImport, PropertyImportResponse, PropertyResponse, SortBy, SortOrder
+from app.services.property_service import PropertyService
+from app.utils.cloudinary_config import upload_image_to_cloudinary, upload_video_to_cloudinary
 
 router = APIRouter()
 
@@ -101,7 +102,7 @@ async def get_properties(
     bathrooms: Optional[int] = Query(None, ge=0),
     location_state: Optional[str] = None,
     location_area: Optional[str] = None,
-    amenities: Optional[List[str]] = Query(None),
+    amenities: Optional[list[str]] = Query(None),
     listing_type: Optional[str] = Query(None),
     sort_by: SortBy = SortBy.CREATED_AT,
     sort_order: SortOrder = SortOrder.DESC,
@@ -193,7 +194,7 @@ async def create_property(
     estate: str = Form(None),
     size: str = Form(None),
     property_status: str = Form(default="available", alias="status"),
-    images: List[UploadFile] = File(...),
+    images: list[UploadFile] = File(...),
     video: Optional[UploadFile] = File(None),
     current_user: dict = Depends(get_current_user),
     property_service: PropertyService = Depends(get_property_service)
@@ -303,7 +304,7 @@ async def update_property(
     estate: Optional[str] = Form(None),
     size: Optional[str] = Form(None),
     property_status: Optional[str] = Form(None, alias="status"),
-    images: Optional[List[UploadFile]] = File(None),
+    images: Optional[list[UploadFile]] = File(None),
     video: Optional[UploadFile] = File(None),
     current_user: dict = Depends(get_current_user),
     property_service: PropertyService = Depends(get_property_service)
