@@ -239,7 +239,7 @@ class PropertyService(BaseService):
                 listing_type=property_data.get("listing_type", "rent"),
                 beds=property_data.get("beds", 0),
                 property_type=property_data.get("type", "property"),
-                lga=property_data.get("lga", ""),
+                address=property_data.get("address", ""),
                 state=property_data.get("state", ""),
                 property_id=created_property["id"]
             )

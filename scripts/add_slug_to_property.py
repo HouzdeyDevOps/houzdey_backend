@@ -57,7 +57,7 @@ async def add_slug_to_property(property_id: str):
             listing_type=property_obj.get("listing_type", "rent"),
             beds=property_obj.get("beds", 0),
             property_type=property_obj.get("type", "property"),
-            lga=property_obj.get("lga", "unknown"),
+            address=property_obj.get("address", ""),
             state=property_obj.get("state", "unknown"),
             property_id=str(property_obj["_id"])
         )

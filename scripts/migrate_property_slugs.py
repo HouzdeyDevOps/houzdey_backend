@@ -15,28 +15,38 @@ from app.core.config import settings
 from app.utils.slug import generate_property_slug
 
 
-async def migrate_property_slugs():
-    """Add slugs to existing properties that don't have them"""
-    
+async def migrate_property_slugs(regenerate_all: bool = False):
+    """Add or regenerate slugs for properties.
+
+    Args:
+        regenerate_all: If True, regenerates slugs for ALL properties (address-based).
+                        If False, only fills in missing slugs.
+    """
+
     try:
         # Connect to MongoDB
         print("Connecting to MongoDB...")
         client = AsyncIOMotorClient(settings.MONGO_URL)
         db = client.Houzdey  # Database name is "Houzdey" (capital H)
         properties_collection = db["properties"]
-        
-        # Find properties without slugs
-        print("\nFinding properties without slugs...")
-        properties = await properties_collection.find({
-            "$or": [
-                {"slug": {"$exists": False}},
-                {"slug": None},
-                {"slug": ""}
-            ]
-        }).to_list(None)
-        
-        total = len(properties)
-        print(f"Found {total} properties without slugs\n")
+
+        if regenerate_all:
+            print("\nFetching ALL properties for slug regeneration...")
+            properties = await properties_collection.find({}).to_list(None)
+            total = len(properties)
+            print(f"Found {total} properties total\n")
+        else:
+            # Find properties without slugs
+            print("\nFinding properties without slugs...")
+            properties = await properties_collection.find({
+                "$or": [
+                    {"slug": {"$exists": False}},
+                    {"slug": None},
+                    {"slug": ""}
+                ]
+            }).to_list(None)
+            total = len(properties)
+            print(f"Found {total} properties without slugs\n")
         
         if total == 0:
             print("No properties need migration!")
@@ -61,7 +71,7 @@ async def migrate_property_slugs():
                     listing_type=prop.get("listing_type", "rent"),
                     beds=prop.get("beds", 0),
                     property_type=prop.get("type", "property"),
-                    lga=prop.get("lga", "unknown"),
+                    address=prop.get("address", ""),
                     state=prop.get("state", "unknown"),
                     property_id=property_id
                 )
@@ -205,7 +215,12 @@ if __name__ == "__main__":
     parser.add_argument(
         "--migrate",
         action="store_true",
-        help="Run the migration to add slugs"
+        help="Run the migration to add slugs to properties that are missing them"
+    )
+    parser.add_argument(
+        "--regenerate",
+        action="store_true",
+        help="Regenerate slugs for ALL properties using address-based format"
     )
     parser.add_argument(
         "--verify",
@@ -220,14 +235,17 @@ if __name__ == "__main__":
     
     args = parser.parse_args()
     
-    if args.migrate:
-        asyncio.run(migrate_property_slugs())
+    if args.regenerate:
+        asyncio.run(migrate_property_slugs(regenerate_all=True))
+    elif args.migrate:
+        asyncio.run(migrate_property_slugs(regenerate_all=False))
     elif args.verify:
         asyncio.run(verify_slugs())
     elif args.samples:
         asyncio.run(show_sample_slugs())
     else:
         print("Usage:")
-        print("  python scripts/migrate_property_slugs.py --migrate   # Run migration")
-        print("  python scripts/migrate_property_slugs.py --verify    # Check coverage")
-        print("  python scripts/migrate_property_slugs.py --samples   # Show sample URLs")
+        print("  python scripts/migrate_property_slugs.py --regenerate  # Regenerate ALL slugs (address-based)")
+        print("  python scripts/migrate_property_slugs.py --migrate     # Add slugs to properties missing them")
+        print("  python scripts/migrate_property_slugs.py --verify      # Check coverage")
+        print("  python scripts/migrate_property_slugs.py --samples     # Show sample URLs")
