@@ -11,8 +11,6 @@ from slowapi.errors import RateLimitExceeded
 from app.core.database import create_indexes
 from app.api.main import api_router
 from app.core.config import settings
-from app.api.socket_manager import init_socket_manager
-from app.api.socket_handlers import register_socket_handlers
 
 # Import new architecture components
 from app.core.error_handlers import register_error_handlers
@@ -42,7 +40,6 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 # Register error handlers
 register_error_handlers(app)
 
-# Configure CORS BEFORE initializing socket manager
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
@@ -72,10 +69,6 @@ def index():
 
 app.include_router(api_router, prefix=settings.API_V1_STR)
 
-# Initialize socket manager after ALL routes are registered
-socket_manager = init_socket_manager(app)
-register_socket_handlers(socket_manager)
-
 
 # @app.on_event("startup")
 # async def startup_event():
@@ -93,11 +86,6 @@ async def startup_event():
         import logging
         logger = logging.getLogger(__name__)
         logger.warning(f"Could not create indexes on startup: {e}. Server will continue anyway.")
-
-# Wrap FastAPI app with Socket.IO (must be done after all routes/middleware are configured)
-import socketio
-# Replace the app variable with the Socket.IO wrapped version
-app = socketio.ASGIApp(socket_manager, app)
 
 # start the server
 if __name__ == "__main__":

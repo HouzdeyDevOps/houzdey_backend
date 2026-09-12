@@ -186,8 +186,8 @@ async def get_user_reviews(
     limit: int = Query(10, ge=1, le=50),
     sentiment: Optional[str] = Query(None),
     rating: Optional[int] = Query(None, ge=1, le=5),
-    sort_by: str = Query("created_at", regex="^(created_at|rating|likes_count)$"),
-    sort_order: str = Query("desc", regex="^(asc|desc)$")
+    sort_by: str = Query("created_at", pattern="^(created_at|rating|likes_count)$"),
+    sort_order: str = Query("desc", pattern="^(asc|desc)$")
 ):
     """Get reviews for a specific user"""
     try:
@@ -270,7 +270,7 @@ async def get_my_reviews(
     current_user: User = Depends(get_current_user),
     page: int = Query(1, ge=1),
     limit: int = Query(10, ge=1, le=50),
-    type: str = Query("received", regex="^(received|given)$")
+    type: str = Query("received", pattern="^(received|given)$")
 ):
     """Get reviews written by or received by the current user"""
     try:
