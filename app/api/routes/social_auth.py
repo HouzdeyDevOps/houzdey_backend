@@ -47,7 +47,8 @@ async def handle_social_auth(user_info: dict, auth_provider: str, user_service: 
             "first_name": user["first_name"],
             "last_name": user["last_name"],
             "status": user["status"],
-            "profile_picture": user["profile_picture"]
+            "profile_picture": user["profile_picture"],
+            "phone_number": user.get("phone_number"),
         }
     }
 
