@@ -49,6 +49,7 @@ async def handle_social_auth(user_info: dict, auth_provider: str, user_service: 
             "status": user["status"],
             "profile_picture": user["profile_picture"],
             "phone_number": user.get("phone_number"),
+            "phone_verified": user.get("phone_verified", False),
         }
     }
 
