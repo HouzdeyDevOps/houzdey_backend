@@ -22,7 +22,7 @@ def custom_generate_unique_id(route: APIRoute) -> str:
 
 
 # Setup logging
-setup_logging(level="INFO", log_file="logs/houzdey.log")
+setup_logging(level="INFO")
 
 # Initialize rate limiter
 limiter = Limiter(key_func=get_remote_address)
