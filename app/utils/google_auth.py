@@ -1,5 +1,5 @@
 from fastapi import HTTPException
-import requests
+import httpx
 from typing import Dict
 import hashlib
 import base64
@@ -27,17 +27,20 @@ async def get_google_oauth_token(code: str) -> Dict:
             "code": code,
             "client_id": settings.GOOGLE_CLIENT_ID,
             "client_secret": settings.GOOGLE_CLIENT_SECRET,
-            "redirect_uri": "postmessage",  # Special value for popup flow
+            "redirect_uri": "postmessage",
             "grant_type": "authorization_code"
         }
 
-        token_response = requests.post(token_url, data=token_data)
-        
-        if not token_response.ok:
+        async with httpx.AsyncClient() as client:
+            token_response = await client.post(token_url, data=token_data)
+
+        if not token_response.is_success:
             raise ValueError(f"Failed to get token: {token_response.text}")
-            
+
         return token_response.json()
 
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(
             status_code=401,
@@ -47,12 +50,13 @@ async def get_google_oauth_token(code: str) -> Dict:
 async def get_google_user_info(access_token: str) -> Dict:
     """Get user info from Google"""
     try:
-        userinfo_response = requests.get(
-            "https://www.googleapis.com/oauth2/v3/userinfo",
-            headers={"Authorization": f"Bearer {access_token}"},
-        )
+        async with httpx.AsyncClient() as client:
+            userinfo_response = await client.get(
+                "https://www.googleapis.com/oauth2/v3/userinfo",
+                headers={"Authorization": f"Bearer {access_token}"},
+            )
 
-        if not userinfo_response.ok:
+        if not userinfo_response.is_success:
             raise ValueError(f"Failed to get user info: {userinfo_response.text}")
 
         userinfo = userinfo_response.json()
@@ -73,8 +77,10 @@ async def get_google_user_info(access_token: str) -> Dict:
             "email_verified": userinfo.get("email_verified", False),
         }
 
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(
-            status_code=401, 
+            status_code=401,
             detail=f"Failed to get user info: {str(e)}"
         )
