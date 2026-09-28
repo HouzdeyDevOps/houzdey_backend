@@ -45,7 +45,9 @@ async def create_new_user(
 
 
 @router.post("/verify")
+@limiter.limit("5/minute")
 async def verify_user_email(
+    request: Request,
     user_verify: UserVerify,
     user_service: UserService = Depends(get_user_service)
 ):
@@ -61,7 +63,9 @@ async def verify_user_email(
 
 
 @router.post("/verify-code")
+@limiter.limit("5/minute")
 async def verify_code(
+    request: Request,
     user_verify: UserVerify,
     user_service: UserService = Depends(get_user_service)
 ):
@@ -341,7 +345,9 @@ async def update_current_user_profile(
 
 
 @router.post("/forgot-password")
+@limiter.limit("5/minute")
 async def forgot_password(
+    request: Request,
     email: str = Form(...),
     user_service: UserService = Depends(get_user_service)
 ):
@@ -355,7 +361,9 @@ async def forgot_password(
 
 
 @router.post("/reset-password")
+@limiter.limit("5/minute")
 async def reset_password(
+    request: Request,
     email: str = Form(...),
     reset_code: str = Form(...),
     new_password: str = Form(...),
@@ -436,7 +444,9 @@ async def update_chat_status(
 
 
 @router.post("/phone/send-otp")
+@limiter.limit("5/minute")
 async def send_phone_otp(
+    request: Request,
     phone_number: str = Form(...),
     current_user: dict = Depends(get_current_user),
     user_service: UserService = Depends(get_user_service)
@@ -448,7 +458,9 @@ async def send_phone_otp(
     )
     return result
 @router.post("/phone/verify")
+@limiter.limit("5/minute")
 async def verify_phone_number(
+    request: Request,
     phone_number: str = Form(...),
     otp: str = Form(...),
     current_user: dict = Depends(get_current_user),
