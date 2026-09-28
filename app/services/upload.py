@@ -1,7 +1,10 @@
+import logging
 from fastapi import UploadFile, HTTPException
 import cloudinary # type: ignore
 import cloudinary.uploader # type: ignore
 from app.core.config import settings
+
+logger = logging.getLogger(__name__)
 
 # Configure Cloudinary
 cloudinary.config(
@@ -55,4 +58,5 @@ class UploadService:
             return upload_result['secure_url']
 
         except Exception as e:
-            raise HTTPException(status_code=500, detail=str(e)) 
+            logger.error(f"File upload failed: {str(e)}")
+            raise HTTPException(status_code=500, detail="File upload failed. Please try again.")

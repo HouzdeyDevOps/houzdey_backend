@@ -1,3 +1,4 @@
+import logging
 from fastapi import APIRouter, Depends, HTTPException
 from app.services.user_service import UserService
 from app.services.property_service import PropertyService
@@ -11,6 +12,7 @@ class WishlistAdd(BaseModel):
 
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 
 @router.post("")
@@ -27,7 +29,8 @@ async def add_wishlist(
         )
         return result
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Add to wishlist failed: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to add property to wishlist")
 
 
 @router.delete("/{property_id}")
@@ -44,7 +47,8 @@ async def remove_wishlist(
         )
         return result
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Remove from wishlist failed: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to remove property from wishlist")
 
 
 @router.get("")
@@ -72,7 +76,8 @@ async def get_from_wishlist(
         
         return {"items": properties}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Get wishlist failed: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to fetch wishlist")
 
 @router.get("/ids")
 async def get_wishlist_property_ids(current_user=Depends(get_current_user)):

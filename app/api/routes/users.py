@@ -1,3 +1,4 @@
+import logging
 from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, status, Form, Query, File, UploadFile, Request, Response
 from fastapi.responses import JSONResponse
@@ -17,6 +18,7 @@ from app.repositories.token_repository import TokenRepository
 
 router = APIRouter()
 limiter = Limiter(key_func=get_remote_address)
+logger = logging.getLogger(__name__)
 
 
 @router.post("/register", status_code=status.HTTP_201_CREATED)
@@ -38,9 +40,10 @@ async def create_new_user(
             "user_id": created_user["id"]
         }
     except Exception as e:
+        logger.error(f"Registration failed: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=str(e)
+            detail="Registration failed. Please try again."
         )
 
 
@@ -56,9 +59,10 @@ async def verify_user_email(
         result = await user_service.verify_email(user_verify.email, user_verify.code)
         return result
     except Exception as e:
+        logger.error(f"Email verification failed: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
+            detail="Verification failed. Please check your code and try again."
         )
 
 
@@ -74,9 +78,10 @@ async def verify_code(
         result = await user_service.verify_email(user_verify.email, user_verify.code)
         return result
     except Exception as e:
+        logger.error(f"Email verification failed: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
+            detail="Verification failed. Please check your code and try again."
         )
 
 
@@ -92,9 +97,10 @@ async def resend_verification_code(
         result = await user_service.resend_verification_code(email)
         return result
     except Exception as e:
+        logger.error(f"Resend verification code failed: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
+            detail="Failed to resend verification code. Please try again."
         )
 
 
@@ -124,9 +130,10 @@ async def login_user(
     except AuthenticationError as e:
         raise e
     except Exception as e:
+        logger.error(f"Login failed: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=str(e)
+            detail="Invalid email or password"
         )
 
 
@@ -214,9 +221,10 @@ async def refresh_access_token(
     except HTTPException:
         raise
     except Exception as e:
+        logger.error(f"Token refresh failed: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to refresh token: {str(e)}"
+            detail="Failed to refresh token"
         )
 
 
@@ -240,9 +248,10 @@ async def logout_user(
 
         return {"message": "Successfully logged out"}
     except Exception as e:
+        logger.error(f"Logout failed: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to logout: {str(e)}"
+            detail="Failed to logout"
         )
 
 
@@ -261,9 +270,10 @@ async def logout_all_devices(
 
         return {"message": "Successfully logged out from all devices"}
     except Exception as e:
+        logger.error(f"Logout-all failed: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to logout from all devices: {str(e)}"
+            detail="Failed to logout from all devices"
         )
 
 
@@ -336,11 +346,12 @@ async def update_current_user_profile(
             return response_data
         else:
             return current_user
-            
+
     except Exception as e:
+        logger.error(f"Profile update failed: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=str(e)
+            detail="Failed to update profile"
         )
 
 
@@ -374,9 +385,10 @@ async def reset_password(
         result = await user_service.reset_password(email, reset_code, new_password)
         return result
     except Exception as e:
+        logger.error(f"Password reset failed: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
+            detail="Failed to reset password. Please check your reset code and try again."
         )
 
 
@@ -389,15 +401,16 @@ async def add_to_wishlist(
     """Add property to user's wishlist."""
     try:
         result = await user_service.add_to_wishlist(
-            current_user["id"], 
-            property_id, 
+            current_user["id"],
+            property_id,
             current_user["id"]
         )
         return result
     except Exception as e:
+        logger.error(f"Add to wishlist failed: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=str(e)
+            detail="Failed to add property to wishlist"
         )
 
 
@@ -410,15 +423,16 @@ async def remove_from_wishlist(
     """Remove property from user's wishlist."""
     try:
         result = await user_service.remove_from_wishlist(
-            current_user["id"], 
-            property_id, 
+            current_user["id"],
+            property_id,
             current_user["id"]
         )
         return result
     except Exception as e:
+        logger.error(f"Remove from wishlist failed: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=str(e)
+            detail="Failed to remove property from wishlist"
         )
 
 
@@ -431,15 +445,16 @@ async def update_chat_status(
     """Update user chat status."""
     try:
         result = await user_service.update_chat_status(
-            current_user["id"], 
-            status_value, 
+            current_user["id"],
+            status_value,
             current_user["id"]
         )
         return result
     except Exception as e:
+        logger.error(f"Update chat status failed: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=str(e)
+            detail="Failed to update chat status"
         )
 
 
