@@ -1,5 +1,5 @@
 from typing import Annotated
-from fastapi import APIRouter, Depends, HTTPException, status, Form, Query, File, UploadFile, Request
+from fastapi import APIRouter, Depends, HTTPException, status, Form, Query, File, UploadFile, Request, Response
 from fastapi.responses import JSONResponse
 from fastapi.security import OAuth2PasswordRequestForm
 from slowapi import Limiter
@@ -8,8 +8,9 @@ from slowapi.util import get_remote_address
 from app.models.user import User, UserCreate, UserVerify, UserLogin, UserStatus, TokenRefreshRequest
 from app.services.user_service import UserService
 from app.core.dependencies import get_user_service
-from app.api.deps import get_current_user
-from app.core.security import create_token, create_refresh_token, verify_refresh_token, oauth2_scheme
+from app.api.deps import get_current_user, get_access_token
+from app.core.security import create_token, create_refresh_token, verify_refresh_token
+from app.core.cookies import set_auth_cookies, clear_auth_cookies
 from app.core.exceptions import AuthenticationError
 from app.utils.cloudinary_config import upload_image_to_cloudinary, delete_image_from_cloudinary, extract_public_id_from_url
 from app.repositories.token_repository import TokenRepository
@@ -98,16 +99,18 @@ async def resend_verification_code(
 async def login_user(
     request: Request,
     user_login: UserLogin,
+    response: Response,
     user_service: UserService = Depends(get_user_service)
 ):
     """Authenticate user and return access token."""
     try:
         user = await user_service.authenticate_user(user_login.email, user_login.password)
-        
+
         # Create access and refresh tokens
         access_token = create_token(user["email"], "access")
         refresh_token = create_refresh_token(user["email"])
-        
+        set_auth_cookies(response, access_token, refresh_token)
+
         return {
             "access_token": access_token,
             "refresh_token": refresh_token,
@@ -127,16 +130,18 @@ async def login_user(
 @limiter.limit("10/minute")
 async def login_for_access_token(
     request: Request,
+    response: Response,
     form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
     user_service: UserService = Depends(get_user_service)
 ):
     """OAuth2 compatible token endpoint."""
     try:
         user = await user_service.authenticate_user(form_data.username, form_data.password)
-        
+
         access_token = create_token(user["email"], "access")
         refresh_token = create_refresh_token(user["email"])
-        
+        set_auth_cookies(response, access_token, refresh_token)
+
         return {
             "access_token": access_token,
             "refresh_token": refresh_token,
@@ -154,23 +159,31 @@ async def login_for_access_token(
 @limiter.limit("20/minute")
 async def refresh_access_token(
     request: Request,
-    token_request: TokenRefreshRequest,
+    response: Response,
+    token_request: TokenRefreshRequest = TokenRefreshRequest(),
     user_service: UserService = Depends(get_user_service)
 ):
-    """Refresh access token using refresh token."""
+    """Refresh access token using refresh token (from cookie, or body for non-browser clients)."""
     try:
+        refresh_token = request.cookies.get("refresh_token") or token_request.refresh_token
+        if not refresh_token:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="No refresh token provided"
+            )
+
         token_repo = TokenRepository()
-        
+
         # Check if refresh token is blacklisted
-        is_blacklisted = await token_repo.is_token_blacklisted(token_request.refresh_token)
+        is_blacklisted = await token_repo.is_token_blacklisted(refresh_token)
         if is_blacklisted:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid or expired refresh token"
             )
-        
+
         # Verify refresh token
-        email = verify_refresh_token(token_request.refresh_token)
+        email = verify_refresh_token(refresh_token)
         if not email:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
@@ -188,7 +201,8 @@ async def refresh_access_token(
         
         # Create new access token
         new_access_token = create_token(email, "access")
-        
+        set_auth_cookies(response, new_access_token)
+
         return {
             "access_token": new_access_token,
             "token_type": "bearer"
@@ -204,20 +218,22 @@ async def refresh_access_token(
 
 @router.post("/logout")
 async def logout_user(
+    response: Response,
     current_user: dict = Depends(get_current_user),
-    token: str = Depends(oauth2_scheme)
+    token: str = Depends(get_access_token)
 ):
-    """Logout user by blacklisting their current access token."""
+    """Logout user by blacklisting their current access token and clearing auth cookies."""
     try:
         token_repo = TokenRepository()
-        
+
         # Blacklist the current access token
         await token_repo.blacklist_token(
             token=token,
             user_email=current_user["email"],
             token_type="access"
         )
-        
+        clear_auth_cookies(response)
+
         return {"message": "Successfully logged out"}
     except Exception as e:
         raise HTTPException(
@@ -228,15 +244,17 @@ async def logout_user(
 
 @router.post("/logout-all")
 async def logout_all_devices(
+    response: Response,
     current_user: dict = Depends(get_current_user)
 ):
-    """Logout user from all devices by invalidating all their tokens."""
+    """Logout user from all devices by invalidating all their tokens and clearing auth cookies."""
     try:
         token_repo = TokenRepository()
-        
+
         # Blacklist all tokens for this user
         await token_repo.blacklist_all_user_tokens(current_user["email"])
-        
+        clear_auth_cookies(response)
+
         return {"message": "Successfully logged out from all devices"}
     except Exception as e:
         raise HTTPException(

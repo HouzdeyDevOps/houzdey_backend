@@ -44,7 +44,7 @@ def create_token(subject: str | Any, type_ops: str) -> str:
     else:
         raise ValueError("Invalid token type")
 
-    to_encode = {"exp": expire, "sub": str(subject), "type": type_ops}
+    to_encode = {"exp": expire, "iat": datetime.utcnow(), "sub": str(subject), "type": type_ops}
     return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 
 def verify_token(

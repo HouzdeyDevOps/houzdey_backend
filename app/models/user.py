@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field, EmailStr, StringConstraints, validator  # type: ignore
-from typing import List, Annotated
+from typing import List, Annotated, Optional
 from enum import Enum
 from datetime import datetime
 
@@ -74,7 +74,7 @@ class Token(BaseModel):
 
 
 class TokenRefreshRequest(BaseModel):
-    refresh_token: str
+    refresh_token: Optional[str] = None
 
 
 class TokenData(BaseModel):

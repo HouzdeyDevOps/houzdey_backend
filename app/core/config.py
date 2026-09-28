@@ -72,7 +72,10 @@ class Settings(BaseSettings):
     # JWT Settings
     ALGORITHM: str = "HS256"
 
-    
+    # Cookie Settings
+    COOKIE_DOMAIN: str = ""  # e.g. ".houzdey.com" in production if frontend/backend are on different subdomains; "" = host-only cookie (correct for local dev)
+
+
     # Email Settings
     EMAIL_RESET_PASSWORD_EXPIRE_MINUTES: int = 10
     EMAIL_VERIFY_EMAIL_EXPIRE_MINUTES: int = 60 * 24 * 8

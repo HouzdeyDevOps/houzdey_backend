@@ -1,5 +1,6 @@
-from fastapi import APIRouter, HTTPException, Body, Depends
+from fastapi import APIRouter, HTTPException, Body, Depends, Response
 from app.core.security import create_token, create_refresh_token
+from app.core.cookies import set_auth_cookies
 from app.services.user_service import UserService
 from app.core.dependencies import get_user_service
 from app.utils.google_auth import  get_google_oauth_token, get_google_user_info
@@ -81,6 +82,7 @@ async def google_auth():
 
 @router.post("/google/callback")
 async def google_callback(
+    response: Response,
     code: str = Body(..., embed=True),
     user_service: UserService = Depends(get_user_service)
 ):
@@ -88,16 +90,18 @@ async def google_callback(
     try:
         # Get tokens from Google
         token_data = await get_google_oauth_token(code)
-        
+
         # Get user info using access token
         user_info = await get_google_user_info(token_data["access_token"])
-        
+
         # Generate random password for social auth users
         user_info["password"] = secrets.token_urlsafe(32)
-        
+
         # Handle social auth
-        return await handle_social_auth(user_info, "google", user_service)
-        
+        result = await handle_social_auth(user_info, "google", user_service)
+        set_auth_cookies(response, result["access_token"], result["refresh_token"])
+        return result
+
     except Exception as e:
         raise HTTPException(
             status_code=400,
