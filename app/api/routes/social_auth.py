@@ -5,6 +5,7 @@ from app.services.user_service import UserService
 from app.core.dependencies import get_user_service
 from app.utils.google_auth import  get_google_oauth_token, get_google_user_info
 from app.models.user import UserStatus
+from app.core.exceptions import NotFoundError
 # from app.utils.facebook_auth import authenticate_facebook_token
 # from app.utils.apple_auth import get_apple_tokens, verify_apple_id_token
 import secrets
@@ -16,17 +17,34 @@ import base64
 router = APIRouter()
 
 async def handle_social_auth(user_info: dict, auth_provider: str, user_service: UserService):
+    if not user_info.get("email_verified", False):
+        raise HTTPException(
+            status_code=400,
+            detail="Your Google account's email is not verified. Please verify it with Google, or sign up with a password instead."
+        )
+
     try:
-        # Check if user exists
         existing_user = await user_service.get_user_by_email(user_info["email"])
+    except NotFoundError:
+        existing_user = None
+
+    if existing_user:
+        if not existing_user.get("email_verified", False):
+            raise HTTPException(
+                status_code=400,
+                detail="An account with this email already exists but is not verified. Please verify your email, or sign in with a password first."
+            )
+        if not existing_user.get(f"{auth_provider}_id"):
+            await user_service.user_repo.update_by_id(
+                existing_user["id"], {f"{auth_provider}_id": user_info["sub"]}
+            )
         user = existing_user
-    except:
-        # Create new user
+    else:
         user_data = {
             "email": user_info["email"],
             "first_name": user_info.get("given_name", ""),
             "last_name": user_info.get("family_name", ""),
-            "password": user_info["password"], 
+            "password": user_info["password"],
             f"{auth_provider}_id": user_info["sub"],
             "email_verified": True,
             "status": UserStatus.VERIFIED.value,
