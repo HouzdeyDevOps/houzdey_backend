@@ -1,3 +1,4 @@
+import re
 from typing import Dict, List, Optional, Any
 from pymongo import ASCENDING, DESCENDING
 from app.repositories.base import BaseRepository
@@ -37,12 +38,13 @@ class PropertyRepository(BaseRepository):
         
         # Search functionality
         if search:
+            escaped_search = re.escape(search)
             filter_query["$or"] = [
-                {"title": {"$regex": search, "$options": "i"}},
-                {"address": {"$regex": search, "$options": "i"}},
-                {"description": {"$regex": search, "$options": "i"}},
-                {"state": {"$regex": search, "$options": "i"}},
-                {"lga": {"$regex": search, "$options": "i"}},
+                {"title": {"$regex": escaped_search, "$options": "i"}},
+                {"address": {"$regex": escaped_search, "$options": "i"}},
+                {"description": {"$regex": escaped_search, "$options": "i"}},
+                {"state": {"$regex": escaped_search, "$options": "i"}},
+                {"lga": {"$regex": escaped_search, "$options": "i"}},
             ]
         
         # Property type filter
@@ -57,9 +59,9 @@ class PropertyRepository(BaseRepository):
         
         # Location filters
         if location_state:
-            filter_query["state"] = {"$regex": f"^{location_state}$", "$options": "i"}
+            filter_query["state"] = {"$regex": f"^{re.escape(location_state)}$", "$options": "i"}
         if location_area:
-            filter_query["lga"] = {"$regex": f"^{location_area}$", "$options": "i"}
+            filter_query["lga"] = {"$regex": f"^{re.escape(location_area)}$", "$options": "i"}
         
         # Amenities filter
         if amenities:

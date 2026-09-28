@@ -4,6 +4,7 @@ from datetime import datetime, timedelta
 from bson import ObjectId
 from bson.errors import InvalidId
 import logging
+import re
 
 from app.core.database import (
     user_collection, 
@@ -159,10 +160,11 @@ async def get_users(
         # Build filter query
         filter_query = {}
         if search:
+            escaped_search = re.escape(search)
             filter_query["$or"] = [
-                {"first_name": {"$regex": search, "$options": "i"}},
-                {"last_name": {"$regex": search, "$options": "i"}},
-                {"email": {"$regex": search, "$options": "i"}}
+                {"first_name": {"$regex": escaped_search, "$options": "i"}},
+                {"last_name": {"$regex": escaped_search, "$options": "i"}},
+                {"email": {"$regex": escaped_search, "$options": "i"}}
             ]
         if status:
             filter_query["status"] = status
