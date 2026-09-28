@@ -243,15 +243,26 @@ async def update_user(
         
         # Build update data
         update_data = {k: v for k, v in user_update.model_dump().items() if v is not None}
+
+        privileged_fields = {"role", "email", "status"}
+        if privileged_fields & update_data.keys() and current_admin["role"] != UserRole.SUPER_ADMIN.value:
+            raise HTTPException(
+                status_code=403,
+                detail="Only super admins can change role, email, or status"
+            )
+
+        if "role" in update_data and isinstance(update_data["role"], UserRole):
+            update_data["role"] = update_data["role"].value
+
         if update_data:
             update_data["updated_at"] = datetime.utcnow()
-            
+
             # Update user
             result = await user_collection.update_one(
                 {"_id": ObjectId(user_id)},
                 {"$set": update_data}
             )
-            
+
             if result.modified_count > 0:
                 await log_admin_action(
                     get_admin_id(current_admin), "UPDATE", "user", user_id,
@@ -263,9 +274,11 @@ async def update_user(
                 return {"message": "No changes made"}
         else:
             return {"message": "No update data provided"}
-            
+
     except InvalidId:
         raise HTTPException(status_code=400, detail="Invalid user ID")
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error updating user: {str(e)}")
         raise HTTPException(status_code=500, detail="Failed to update user")
