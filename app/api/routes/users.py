@@ -10,7 +10,7 @@ from app.models.user import User, UserCreate, UserVerify, UserLogin, UserStatus,
 from app.services.user_service import UserService
 from app.core.dependencies import get_user_service
 from app.api.deps import get_current_user, get_access_token
-from app.core.security import create_token, create_refresh_token, verify_refresh_token
+from app.core.security import create_token, create_refresh_token, verify_refresh_token, token_revoked_by_marker
 from app.core.cookies import set_auth_cookies, clear_auth_cookies
 from app.core.exceptions import AuthenticationError
 from app.utils.cloudinary_config import upload_image_to_cloudinary, delete_image_from_cloudinary, extract_public_id_from_url
@@ -209,7 +209,21 @@ async def refresh_access_token(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="User not found"
             )
-        
+
+        if user.get("status") == UserStatus.SUSPENDED.value:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid or expired refresh token"
+            )
+
+        # Refresh tokens must also honour "logout from all devices"
+        invalidation_time = await token_repo.get_user_invalidation_time(email)
+        if token_revoked_by_marker(refresh_token, invalidation_time):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid or expired refresh token"
+            )
+
         # Create new access token
         new_access_token = create_token(email, "access")
         set_auth_cookies(response, new_access_token)
@@ -230,11 +244,12 @@ async def refresh_access_token(
 
 @router.post("/logout")
 async def logout_user(
+    request: Request,
     response: Response,
     current_user: dict = Depends(get_current_user),
     token: str = Depends(get_access_token)
 ):
-    """Logout user by blacklisting their current access token and clearing auth cookies."""
+    """Logout user by blacklisting their current access and refresh tokens and clearing auth cookies."""
     try:
         token_repo = TokenRepository()
 
@@ -244,6 +259,14 @@ async def logout_user(
             user_email=current_user["email"],
             token_type="access"
         )
+        # ...and the refresh token, so it cannot mint new access tokens after logout
+        refresh_cookie = request.cookies.get("refresh_token")
+        if refresh_cookie:
+            await token_repo.blacklist_token(
+                token=refresh_cookie,
+                user_email=current_user["email"],
+                token_type="refresh"
+            )
         clear_auth_cookies(response)
 
         return {"message": "Successfully logged out"}

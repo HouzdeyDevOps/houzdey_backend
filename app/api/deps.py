@@ -3,7 +3,7 @@ from fastapi import Depends, HTTPException, status, Request  # type: ignore
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from typing import Optional
 from jose import JWTError, jwt
-from app.core.security import verify_token
+from app.core.security import verify_token, token_revoked_by_marker
 from app.core.config import settings
 from app.services.user_service import UserService
 from app.models.user import User, UserRole
@@ -67,18 +67,10 @@ async def get_current_user(
 
     # Enforce "logout from all devices": reject tokens issued before the invalidation marker
     invalidation_time = await token_repo.get_user_invalidation_time(user["email"])
-    if invalidation_time:
-        try:
-            token_data = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
-            issued_at = datetime.utcfromtimestamp(token_data["iat"])
-        except (JWTError, KeyError):
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED, detail="Token has been revoked"
-            )
-        if issued_at < invalidation_time:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED, detail="Token has been revoked"
-            )
+    if token_revoked_by_marker(token, invalidation_time):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Token has been revoked"
+        )
 
     return user
 
@@ -127,6 +119,9 @@ async def get_optional_current_user(
             return None
 
         user = await user_service.get_user_by_email(payload)
+        invalidation_time = await token_repo.get_user_invalidation_time(user["email"])
+        if token_revoked_by_marker(token, invalidation_time):
+            return None
         return user
     except Exception:
         return None

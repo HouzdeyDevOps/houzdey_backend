@@ -1,3 +1,4 @@
+import calendar
 from datetime import datetime, timedelta
 from typing import Optional, Any, Union
 from fastapi.security import OAuth2PasswordBearer
@@ -121,6 +122,22 @@ def create_refresh_token(subject: str) -> str:
 def verify_refresh_token(token: str) -> Optional[str]:
     """Verify refresh token and return subject"""
     return verify_token(token, expected_type="refresh", raise_exception=False)
+
+
+def token_revoked_by_marker(token: str, invalidation_time: Optional[datetime]) -> bool:
+    """True if the token was issued before the user's logout-all marker.
+
+    JWT `iat` is whole seconds while the marker has microseconds, so compare in whole
+    seconds: a token issued in the same second as the marker (e.g. a fresh login right
+    after logout-all) stays valid.
+    """
+    if not invalidation_time:
+        return False
+    try:
+        iat = int(jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])["iat"])
+    except (JWTError, KeyError, ValueError):
+        return True
+    return iat < calendar.timegm(invalidation_time.utctimetuple())
 
 
 def create_verification_code() -> str:
