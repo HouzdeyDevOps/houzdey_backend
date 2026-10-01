@@ -1,6 +1,7 @@
 from typing import Dict, List, Optional, Any
 from datetime import datetime, timedelta
 import secrets
+from app.repositories.token_repository import TokenRepository
 from app.services.base_service import BaseService
 from app.repositories.user_repository import UserRepository
 from app.models.user import UserStatus, UserRole, UserCreate
@@ -9,6 +10,12 @@ from app.core.security import get_password_hash, verify_password
 from app.core.config import settings
 from app.utils.email import send_verification_code
 from app.utils.sms import send_sms_otp
+
+MAX_CODE_ATTEMPTS = 5
+
+
+def _codes_match(stored, supplied) -> bool:
+    return bool(stored) and bool(supplied) and secrets.compare_digest(str(stored), str(supplied))
 
 
 class UserService(BaseService):
@@ -80,6 +87,9 @@ class UserService(BaseService):
         if not verify_password(password, user["password"]):
             raise AuthenticationError("Invalid email or password")
         
+        if user.get("status") == UserStatus.SUSPENDED.value:
+            raise AuthenticationError("This account has been suspended")
+
         # Check if user is active
         if not user.get("is_active", False):
             # Auto-resend verification code
@@ -152,9 +162,18 @@ class UserService(BaseService):
         sanitized_data = self.sanitize_data(update_data)
         
         # Remove fields that shouldn't be updated directly
-        protected_fields = ["password", "email", "verification_code", "reset_code", "role", "status"]
+        protected_fields = [
+            "password", "email", "verification_code", "reset_code", "role", "status",
+            "is_active", "email_verified", "phone_verified", "phone_otp", "phone_otp_expiry",
+            "phone_otp_number", "code_attempts", "phone_otp_attempts",
+        ]
         for field in protected_fields:
             sanitized_data.pop(field, None)
+
+        # A changed phone number is no longer verified
+        new_phone = sanitized_data.get("phone_number")
+        if new_phone is not None and new_phone != user.get("phone_number"):
+            sanitized_data["phone_verified"] = False
         
         sanitized_data["updated_at"] = datetime.utcnow()
         
@@ -165,17 +184,29 @@ class UserService(BaseService):
         
         return await self.get_user_by_id(user_id)
     
+    async def _register_failed_code_attempt(self, user: Dict[str, Any]) -> None:
+        """Count a wrong email/reset code; after MAX_CODE_ATTEMPTS invalidate the codes."""
+        attempts = int(user.get("code_attempts", 0)) + 1
+        if attempts >= MAX_CODE_ATTEMPTS:
+            await self.user_repo.update_by_id(user["id"], {
+                "verification_code": None, "code_expiry": None,
+                "reset_code": None, "reset_code_expiry": None, "code_attempts": 0,
+            })
+            raise ValidationError("Too many incorrect attempts. Please request a new code.")
+        await self.user_repo.update_by_id(user["id"], {"code_attempts": attempts})
+
     async def verify_email(self, email: str, verification_code: str) -> Dict[str, Any]:
         """Verify user email with verification code OR password reset code"""
         user = await self.user_repo.find_by_email(email)
         if not user:
             raise NotFoundError("User not found")
-        
+
         # Check if this is a password reset code or email verification code
-        is_reset_code = user.get("reset_code") == verification_code
-        is_verification_code = user.get("verification_code") == verification_code
-        
+        is_reset_code = _codes_match(user.get("reset_code"), verification_code)
+        is_verification_code = _codes_match(user.get("verification_code"), verification_code)
+
         if not is_reset_code and not is_verification_code:
+            await self._register_failed_code_attempt(user)
             raise ValidationError("Invalid verification code")
         
         # If it's a reset code, just verify it's valid and not expired
@@ -194,6 +225,7 @@ class UserService(BaseService):
             success = await self.user_repo.update_email_verification(user["id"], verified=True)
             if not success:
                 raise ValidationError("Email verification failed")
+            await self.user_repo.update_by_id(user["id"], {"code_attempts": 0})
             
             # If this is the first verification, activate the account
             if user["status"] == UserStatus.PENDING.value:
@@ -225,6 +257,7 @@ class UserService(BaseService):
         await self.user_repo.update_by_id(user["id"], {
             "verification_code": new_code,
             "code_expiry": code_expiry,
+            "code_attempts": 0,
             "updated_at": datetime.utcnow()
         })
         
@@ -256,6 +289,7 @@ class UserService(BaseService):
         await self.user_repo.update_by_id(user["id"], {
             "reset_code": reset_code,
             "reset_code_expiry": reset_expiry,
+            "code_attempts": 0,
             "updated_at": datetime.utcnow()
         })
         
@@ -280,7 +314,8 @@ class UserService(BaseService):
             raise NotFoundError("User not found")
         
         # Check reset code
-        if user.get("reset_code") != reset_code:
+        if not _codes_match(user.get("reset_code"), reset_code):
+            await self._register_failed_code_attempt(user)
             raise ValidationError("Invalid reset code")
         
         # Check if code is expired
@@ -294,6 +329,10 @@ class UserService(BaseService):
         success = await self.user_repo.update_password(user["id"], hashed_password)
         if not success:
             raise ValidationError("Password reset failed")
+
+        await self.user_repo.update_by_id(user["id"], {"code_attempts": 0})
+        # A password reset must end every existing session
+        await TokenRepository().blacklist_all_user_tokens(user["email"])
         
         return {"message": "Password reset successfully"}
     
@@ -364,7 +403,9 @@ class UserService(BaseService):
         # Store OTP in database
         await self.user_repo.update_by_id(user_id, {
             "phone_otp": otp,
-            "phone_otp_expiry": datetime.utcnow() + timedelta(minutes=10)
+            "phone_otp_expiry": datetime.utcnow() + timedelta(minutes=10),
+            "phone_otp_number": phone_number.strip(),
+            "phone_otp_attempts": 0,
         })
         
         # Send SMS via Termii
@@ -375,20 +416,34 @@ class UserService(BaseService):
         """Verify phone OTP"""
         user = await self.user_repo.get_by_id(user_id)
         
-        # Check OTP
-        if user.get("phone_otp") != otp:
+        # The OTP only verifies the number it was sent to
+        if not user.get("phone_otp_number") or user["phone_otp_number"] != phone_number.strip():
             raise ValidationError("Invalid OTP")
-        
+
+        # Check OTP
+        if not _codes_match(user.get("phone_otp"), otp):
+            attempts = int(user.get("phone_otp_attempts", 0)) + 1
+            if attempts >= MAX_CODE_ATTEMPTS:
+                await self.user_repo.update_by_id(user_id, {
+                    "phone_otp": None, "phone_otp_expiry": None, "phone_otp_number": None, "phone_otp_attempts": 0,
+                })
+                raise ValidationError("Too many incorrect attempts. Please request a new OTP.")
+            await self.user_repo.update_by_id(user_id, {"phone_otp_attempts": attempts})
+            raise ValidationError("Invalid OTP")
+
         # Check expiry
-        if user.get("phone_otp_expiry") < datetime.utcnow():
+        expiry = user.get("phone_otp_expiry")
+        if not expiry or expiry < datetime.utcnow():
             raise ValidationError("OTP has expired")
-        
+
         # Update phone verification status
         await self.user_repo.update_by_id(user_id, {
-            "phone_number": phone_number,
+            "phone_number": phone_number.strip(),
             "phone_verified": True,
             "phone_otp": None,
-            "phone_otp_expiry": None
+            "phone_otp_expiry": None,
+            "phone_otp_number": None,
+            "phone_otp_attempts": 0,
         })
         
         return {"message": "Phone verified successfully"}
