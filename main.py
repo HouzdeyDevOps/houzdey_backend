@@ -1,7 +1,7 @@
 from fastapi import FastAPI, status, Request  # type: ignore
 from fastapi.middleware.cors import CORSMiddleware  # type: ignore
 from fastapi.routing import APIRoute
-from fastapi.responses import RedirectResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 import uvicorn
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
@@ -40,21 +40,37 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 # Register error handlers
 register_error_handlers(app)
 
+ALLOWED_ORIGINS = [
+    "http://localhost:3000",
+    "http://localhost:3001",
+    "http://127.0.0.1:3000",
+    "http://127.0.0.1:3001",
+    "https://houzdey.com",
+    "https://www.houzdey.com",
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",
-        "http://localhost:3001",
-        "http://127.0.0.1:3000",
-        "http://127.0.0.1:3001",
-        "https://houzdey.com",
-        "https://www.houzdey.com",
-    ],
+    allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
     expose_headers=["*"],
 )
+
+
+UNSAFE_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
+
+
+@app.middleware("http")
+async def reject_cross_origin_writes(request: Request, call_next):
+    """CSRF defense for cookie auth: a browser always sends Origin on cross-origin writes.
+    Requests with no Origin (curl, server-to-server) are not browser-driven and pass."""
+    if request.method in UNSAFE_METHODS:
+        origin = request.headers.get("origin")
+        if origin is not None and origin not in ALLOWED_ORIGINS:
+            return JSONResponse(status_code=403, content={"detail": "Cross-origin request blocked"})
+    return await call_next(request)
 
 
 @app.middleware("http")

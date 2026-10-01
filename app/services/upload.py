@@ -30,7 +30,7 @@ def _sniff_content_type(header: bytes) -> Optional[str]:
         return "audio/ogg"
     if header.startswith(b"\x1aE\xdf\xa3"):
         return "audio/webm"
-    if header.startswith(b"ID3") or header[:2] == b"\xff\xfb":
+    if header.startswith(b"ID3") or header[:2] in (b"\xff\xfb", b"\xff\xfa", b"\xff\xf3", b"\xff\xf2"):
         return "audio/mp3"
     return None
 
