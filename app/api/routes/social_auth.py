@@ -1,9 +1,12 @@
-from fastapi import APIRouter, HTTPException, Body, Depends
+import logging
+from fastapi import APIRouter, HTTPException, Body, Depends, Response
 from app.core.security import create_token, create_refresh_token
+from app.core.cookies import set_auth_cookies
 from app.services.user_service import UserService
 from app.core.dependencies import get_user_service
 from app.utils.google_auth import  get_google_oauth_token, get_google_user_info
 from app.models.user import UserStatus
+from app.core.exceptions import NotFoundError
 # from app.utils.facebook_auth import authenticate_facebook_token
 # from app.utils.apple_auth import get_apple_tokens, verify_apple_id_token
 import secrets
@@ -15,17 +18,34 @@ import base64
 router = APIRouter()
 
 async def handle_social_auth(user_info: dict, auth_provider: str, user_service: UserService):
+    if not user_info.get("email_verified", False):
+        raise HTTPException(
+            status_code=400,
+            detail="Your Google account's email is not verified. Please verify it with Google, or sign up with a password instead."
+        )
+
     try:
-        # Check if user exists
         existing_user = await user_service.get_user_by_email(user_info["email"])
+    except NotFoundError:
+        existing_user = None
+
+    if existing_user:
+        if not existing_user.get("email_verified", False):
+            raise HTTPException(
+                status_code=400,
+                detail="An account with this email already exists but is not verified. Please verify your email, or sign in with a password first."
+            )
+        if not existing_user.get(f"{auth_provider}_id"):
+            await user_service.user_repo.update_by_id(
+                existing_user["id"], {f"{auth_provider}_id": user_info["sub"]}
+            )
         user = existing_user
-    except:
-        # Create new user
+    else:
         user_data = {
             "email": user_info["email"],
             "first_name": user_info.get("given_name", ""),
             "last_name": user_info.get("family_name", ""),
-            "password": user_info["password"], 
+            "password": user_info["password"],
             f"{auth_provider}_id": user_info["sub"],
             "email_verified": True,
             "status": UserStatus.VERIFIED.value,
@@ -81,6 +101,7 @@ async def google_auth():
 
 @router.post("/google/callback")
 async def google_callback(
+    response: Response,
     code: str = Body(..., embed=True),
     user_service: UserService = Depends(get_user_service)
 ):
@@ -88,64 +109,24 @@ async def google_callback(
     try:
         # Get tokens from Google
         token_data = await get_google_oauth_token(code)
-        
+
         # Get user info using access token
         user_info = await get_google_user_info(token_data["access_token"])
-        
+
         # Generate random password for social auth users
         user_info["password"] = secrets.token_urlsafe(32)
-        
+
         # Handle social auth
-        return await handle_social_auth(user_info, "google", user_service)
-        
+        result = await handle_social_auth(user_info, "google", user_service)
+        set_auth_cookies(response, result["access_token"], result["refresh_token"])
+        return result
+
+    except HTTPException:
+        raise
     except Exception as e:
+        logging.getLogger(__name__).error("Google sign-in failed: %s", e)
         raise HTTPException(
             status_code=400,
-            detail=str(e)
+            detail="Google sign-in failed"
         )
 
-# @router.post("/apple/callback")
-# async def apple_callback(code: str = Body(..., embed=True)):
-#     """Handle Apple OAuth callback"""
-#     try:
-#         # Get tokens from Apple
-#         token_data = await get_apple_tokens(code)
-        
-#         # Verify and decode the ID token
-#         user_info = await verify_apple_id_token(token_data['id_token'])
-        
-#         # Generate random password for social auth users
-#         user_info["password"] = secrets.token_urlsafe(32)
-        
-#         # Handle social auth
-#         return await handle_social_auth(user_info, "apple")
-        
-#     except Exception as e:
-#         raise HTTPException(
-#             status_code=400,
-#             detail=str(e)
-#         )
-
-# @router.post("/facebook")
-# async def facebook_auth(request: Request):
-#     try:
-#         token = request.headers.get("Authorization")
-#         if not token:
-#             raise HTTPException(status_code=401, detail="No token provided")
-        
-#         user_info = await authenticate_facebook_token(token)
-#         return await handle_social_auth(user_info, "facebook")
-#     except Exception as e:
-#         raise HTTPException(status_code=400, detail=str(e))
-
-# @router.post("/apple")
-# async def apple_auth(request: Request):
-#     try:
-#         token = request.headers.get("Authorization")
-#         if not token:
-#             raise HTTPException(status_code=401, detail="No token provided")
-        
-#         user_info = await authenticate_apple_token(token)
-#         return await handle_social_auth(user_info, "apple")
-#     except Exception as e:
-#         raise HTTPException(status_code=400, detail=str(e)) 

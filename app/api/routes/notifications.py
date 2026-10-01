@@ -49,7 +49,8 @@ async def get_notification_preferences(current_user: dict = Depends(get_current_
         return NotificationPreference(**prefs)
         
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to get notification preferences: {str(e)}")
+        logging.getLogger(__name__).error("Failed to get notification preferences: %s", e)
+        raise HTTPException(status_code=500, detail="Failed to get notification preferences")
 
 @router.put("/preferences")
 async def update_notification_preferences(
@@ -71,7 +72,8 @@ async def update_notification_preferences(
         return {"message": "Notification preferences updated successfully"}
         
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to update notification preferences: {str(e)}")
+        logging.getLogger(__name__).error("Failed to update notification preferences: %s", e)
+        raise HTTPException(status_code=500, detail="Failed to update notification preferences")
 
 @router.get("/my-notifications")
 async def get_user_notifications(
@@ -104,7 +106,8 @@ async def get_user_notifications(
         }
         
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to get notifications: {str(e)}")
+        logging.getLogger(__name__).error("Failed to get notifications: %s", e)
+        raise HTTPException(status_code=500, detail="Failed to get notifications")
 
 @router.post("/mark-read/{notification_id}")
 async def mark_notification_as_read(
@@ -176,7 +179,8 @@ async def get_unread_notification_count(current_user: dict = Depends(get_current
         return {"unread_count": count}
         
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to get unread count: {str(e)}")
+        logging.getLogger(__name__).error("Failed to get unread count: %s", e)
+        raise HTTPException(status_code=500, detail="Failed to get unread count")
 
 # ADMIN NOTIFICATION ROUTES
 

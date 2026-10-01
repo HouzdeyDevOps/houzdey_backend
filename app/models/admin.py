@@ -2,6 +2,7 @@ from pydantic import BaseModel, Field
 from typing import Optional, List, Dict, Any
 from datetime import datetime
 from enum import Enum
+from app.models.user import UserRole
 
 class AdminStats(BaseModel):
     """Admin dashboard statistics"""
@@ -73,7 +74,7 @@ class UserUpdateRequest(BaseModel):
     email: Optional[str] = None
     phone_number: Optional[str] = None
     status: Optional[str] = None
-    role: Optional[str] = None
+    role: Optional[UserRole] = None
     is_active: Optional[bool] = None
     plan: Optional[str] = None
 

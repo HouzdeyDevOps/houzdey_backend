@@ -1,5 +1,6 @@
+import logging
 from typing import Annotated
-from fastapi import APIRouter, Depends, HTTPException, status, Form, Query, File, UploadFile, Request
+from fastapi import APIRouter, Depends, HTTPException, status, Form, Query, File, UploadFile, Request, Response
 from fastapi.responses import JSONResponse
 from fastapi.security import OAuth2PasswordRequestForm
 from slowapi import Limiter
@@ -8,14 +9,16 @@ from slowapi.util import get_remote_address
 from app.models.user import User, UserCreate, UserVerify, UserLogin, UserStatus, TokenRefreshRequest
 from app.services.user_service import UserService
 from app.core.dependencies import get_user_service
-from app.api.deps import get_current_user
-from app.core.security import create_token, create_refresh_token, verify_refresh_token, oauth2_scheme
+from app.api.deps import get_current_user, get_access_token
+from app.core.security import create_token, create_refresh_token, verify_refresh_token, token_revoked_by_marker
+from app.core.cookies import set_auth_cookies, clear_auth_cookies
 from app.core.exceptions import AuthenticationError
 from app.utils.cloudinary_config import upload_image_to_cloudinary, delete_image_from_cloudinary, extract_public_id_from_url
 from app.repositories.token_repository import TokenRepository
 
 router = APIRouter()
 limiter = Limiter(key_func=get_remote_address)
+logger = logging.getLogger(__name__)
 
 
 @router.post("/register", status_code=status.HTTP_201_CREATED)
@@ -37,14 +40,17 @@ async def create_new_user(
             "user_id": created_user["id"]
         }
     except Exception as e:
+        logger.error(f"Registration failed: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=str(e)
+            detail="Registration failed. Please try again."
         )
 
 
 @router.post("/verify")
+@limiter.limit("5/minute")
 async def verify_user_email(
+    request: Request,
     user_verify: UserVerify,
     user_service: UserService = Depends(get_user_service)
 ):
@@ -53,14 +59,17 @@ async def verify_user_email(
         result = await user_service.verify_email(user_verify.email, user_verify.code)
         return result
     except Exception as e:
+        logger.error(f"Email verification failed: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
+            detail="Verification failed. Please check your code and try again."
         )
 
 
 @router.post("/verify-code")
+@limiter.limit("5/minute")
 async def verify_code(
+    request: Request,
     user_verify: UserVerify,
     user_service: UserService = Depends(get_user_service)
 ):
@@ -69,9 +78,10 @@ async def verify_code(
         result = await user_service.verify_email(user_verify.email, user_verify.code)
         return result
     except Exception as e:
+        logger.error(f"Email verification failed: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
+            detail="Verification failed. Please check your code and try again."
         )
 
 
@@ -87,9 +97,10 @@ async def resend_verification_code(
         result = await user_service.resend_verification_code(email)
         return result
     except Exception as e:
+        logger.error(f"Resend verification code failed: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
+            detail="Failed to resend verification code. Please try again."
         )
 
 
@@ -98,16 +109,18 @@ async def resend_verification_code(
 async def login_user(
     request: Request,
     user_login: UserLogin,
+    response: Response,
     user_service: UserService = Depends(get_user_service)
 ):
     """Authenticate user and return access token."""
     try:
         user = await user_service.authenticate_user(user_login.email, user_login.password)
-        
+
         # Create access and refresh tokens
         access_token = create_token(user["email"], "access")
         refresh_token = create_refresh_token(user["email"])
-        
+        set_auth_cookies(response, access_token, refresh_token)
+
         return {
             "access_token": access_token,
             "refresh_token": refresh_token,
@@ -117,9 +130,10 @@ async def login_user(
     except AuthenticationError as e:
         raise e
     except Exception as e:
+        logger.error(f"Login failed: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=str(e)
+            detail="Invalid email or password"
         )
 
 
@@ -127,16 +141,18 @@ async def login_user(
 @limiter.limit("10/minute")
 async def login_for_access_token(
     request: Request,
+    response: Response,
     form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
     user_service: UserService = Depends(get_user_service)
 ):
     """OAuth2 compatible token endpoint."""
     try:
         user = await user_service.authenticate_user(form_data.username, form_data.password)
-        
+
         access_token = create_token(user["email"], "access")
         refresh_token = create_refresh_token(user["email"])
-        
+        set_auth_cookies(response, access_token, refresh_token)
+
         return {
             "access_token": access_token,
             "refresh_token": refresh_token,
@@ -154,23 +170,31 @@ async def login_for_access_token(
 @limiter.limit("20/minute")
 async def refresh_access_token(
     request: Request,
-    token_request: TokenRefreshRequest,
+    response: Response,
+    token_request: TokenRefreshRequest = TokenRefreshRequest(),
     user_service: UserService = Depends(get_user_service)
 ):
-    """Refresh access token using refresh token."""
+    """Refresh access token using refresh token (from cookie, or body for non-browser clients)."""
     try:
+        refresh_token = request.cookies.get("refresh_token") or token_request.refresh_token
+        if not refresh_token:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="No refresh token provided"
+            )
+
         token_repo = TokenRepository()
-        
+
         # Check if refresh token is blacklisted
-        is_blacklisted = await token_repo.is_token_blacklisted(token_request.refresh_token)
+        is_blacklisted = await token_repo.is_token_blacklisted(refresh_token)
         if is_blacklisted:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid or expired refresh token"
             )
-        
+
         # Verify refresh token
-        email = verify_refresh_token(token_request.refresh_token)
+        email = verify_refresh_token(refresh_token)
         if not email:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
@@ -185,10 +209,25 @@ async def refresh_access_token(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="User not found"
             )
-        
+
+        if user.get("status") == UserStatus.SUSPENDED.value:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid or expired refresh token"
+            )
+
+        # Refresh tokens must also honour "logout from all devices"
+        invalidation_time = await token_repo.get_user_invalidation_time(email)
+        if token_revoked_by_marker(refresh_token, invalidation_time):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid or expired refresh token"
+            )
+
         # Create new access token
         new_access_token = create_token(email, "access")
-        
+        set_auth_cookies(response, new_access_token)
+
         return {
             "access_token": new_access_token,
             "token_type": "bearer"
@@ -196,52 +235,68 @@ async def refresh_access_token(
     except HTTPException:
         raise
     except Exception as e:
+        logger.error(f"Token refresh failed: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to refresh token: {str(e)}"
+            detail="Failed to refresh token"
         )
 
 
 @router.post("/logout")
 async def logout_user(
+    request: Request,
+    response: Response,
     current_user: dict = Depends(get_current_user),
-    token: str = Depends(oauth2_scheme)
+    token: str = Depends(get_access_token)
 ):
-    """Logout user by blacklisting their current access token."""
+    """Logout user by blacklisting their current access and refresh tokens and clearing auth cookies."""
     try:
         token_repo = TokenRepository()
-        
+
         # Blacklist the current access token
         await token_repo.blacklist_token(
             token=token,
             user_email=current_user["email"],
             token_type="access"
         )
-        
+        # ...and the refresh token, so it cannot mint new access tokens after logout
+        refresh_cookie = request.cookies.get("refresh_token")
+        if refresh_cookie:
+            await token_repo.blacklist_token(
+                token=refresh_cookie,
+                user_email=current_user["email"],
+                token_type="refresh"
+            )
+        clear_auth_cookies(response)
+
         return {"message": "Successfully logged out"}
     except Exception as e:
+        logger.error(f"Logout failed: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to logout: {str(e)}"
+            detail="Failed to logout"
         )
 
 
 @router.post("/logout-all")
 async def logout_all_devices(
+    response: Response,
     current_user: dict = Depends(get_current_user)
 ):
-    """Logout user from all devices by invalidating all their tokens."""
+    """Logout user from all devices by invalidating all their tokens and clearing auth cookies."""
     try:
         token_repo = TokenRepository()
-        
+
         # Blacklist all tokens for this user
         await token_repo.blacklist_all_user_tokens(current_user["email"])
-        
+        clear_auth_cookies(response)
+
         return {"message": "Successfully logged out from all devices"}
     except Exception as e:
+        logger.error(f"Logout-all failed: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to logout from all devices: {str(e)}"
+            detail="Failed to logout from all devices"
         )
 
 
@@ -314,16 +369,19 @@ async def update_current_user_profile(
             return response_data
         else:
             return current_user
-            
+
     except Exception as e:
+        logger.error(f"Profile update failed: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=str(e)
+            detail="Failed to update profile"
         )
 
 
 @router.post("/forgot-password")
+@limiter.limit("5/minute")
 async def forgot_password(
+    request: Request,
     email: str = Form(...),
     user_service: UserService = Depends(get_user_service)
 ):
@@ -337,7 +395,9 @@ async def forgot_password(
 
 
 @router.post("/reset-password")
+@limiter.limit("5/minute")
 async def reset_password(
+    request: Request,
     email: str = Form(...),
     reset_code: str = Form(...),
     new_password: str = Form(...),
@@ -348,9 +408,10 @@ async def reset_password(
         result = await user_service.reset_password(email, reset_code, new_password)
         return result
     except Exception as e:
+        logger.error(f"Password reset failed: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
+            detail="Failed to reset password. Please check your reset code and try again."
         )
 
 
@@ -363,15 +424,16 @@ async def add_to_wishlist(
     """Add property to user's wishlist."""
     try:
         result = await user_service.add_to_wishlist(
-            current_user["id"], 
-            property_id, 
+            current_user["id"],
+            property_id,
             current_user["id"]
         )
         return result
     except Exception as e:
+        logger.error(f"Add to wishlist failed: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=str(e)
+            detail="Failed to add property to wishlist"
         )
 
 
@@ -384,15 +446,16 @@ async def remove_from_wishlist(
     """Remove property from user's wishlist."""
     try:
         result = await user_service.remove_from_wishlist(
-            current_user["id"], 
-            property_id, 
+            current_user["id"],
+            property_id,
             current_user["id"]
         )
         return result
     except Exception as e:
+        logger.error(f"Remove from wishlist failed: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=str(e)
+            detail="Failed to remove property from wishlist"
         )
 
 
@@ -405,20 +468,23 @@ async def update_chat_status(
     """Update user chat status."""
     try:
         result = await user_service.update_chat_status(
-            current_user["id"], 
-            status_value, 
+            current_user["id"],
+            status_value,
             current_user["id"]
         )
         return result
     except Exception as e:
+        logger.error(f"Update chat status failed: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=str(e)
+            detail="Failed to update chat status"
         )
 
 
 @router.post("/phone/send-otp")
+@limiter.limit("5/minute")
 async def send_phone_otp(
+    request: Request,
     phone_number: str = Form(...),
     current_user: dict = Depends(get_current_user),
     user_service: UserService = Depends(get_user_service)
@@ -430,7 +496,9 @@ async def send_phone_otp(
     )
     return result
 @router.post("/phone/verify")
+@limiter.limit("5/minute")
 async def verify_phone_number(
+    request: Request,
     phone_number: str = Form(...),
     otp: str = Form(...),
     current_user: dict = Depends(get_current_user),

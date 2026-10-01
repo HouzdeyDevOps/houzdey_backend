@@ -1,3 +1,4 @@
+import re
 from typing import Dict, Any, List, Optional
 from datetime import datetime
 from bson import ObjectId
@@ -83,10 +84,10 @@ class BlogRepository(BaseRepository):
         search_term = query.pop("search", None)
         if search_term:
             query["$or"] = [
-                {"title": {"$regex": search_term, "$options": "i"}},
-                {"content": {"$regex": search_term, "$options": "i"}},
-                {"excerpt": {"$regex": search_term, "$options": "i"}},
-                {"tags": {"$regex": search_term, "$options": "i"}}
+                {"title": {"$regex": re.escape(search_term), "$options": "i"}},
+                {"content": {"$regex": re.escape(search_term), "$options": "i"}},
+                {"excerpt": {"$regex": re.escape(search_term), "$options": "i"}},
+                {"tags": {"$regex": re.escape(search_term), "$options": "i"}}
             ]
         
         # Handle tag filter
@@ -112,10 +113,10 @@ class BlogRepository(BaseRepository):
         search_term = query.pop("search", None)
         if search_term:
             query["$or"] = [
-                {"title": {"$regex": search_term, "$options": "i"}},
-                {"content": {"$regex": search_term, "$options": "i"}},
-                {"excerpt": {"$regex": search_term, "$options": "i"}},
-                {"tags": {"$regex": search_term, "$options": "i"}}
+                {"title": {"$regex": re.escape(search_term), "$options": "i"}},
+                {"content": {"$regex": re.escape(search_term), "$options": "i"}},
+                {"excerpt": {"$regex": re.escape(search_term), "$options": "i"}},
+                {"tags": {"$regex": re.escape(search_term), "$options": "i"}}
             ]
         
         # Handle tag filter

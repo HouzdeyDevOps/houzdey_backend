@@ -72,7 +72,10 @@ class Settings(BaseSettings):
     # JWT Settings
     ALGORITHM: str = "HS256"
 
-    
+    # Cookie Settings
+    COOKIE_DOMAIN: str = ""  # e.g. ".houzdey.com" in production if frontend/backend are on different subdomains; "" = host-only cookie (correct for local dev)
+
+
     # Email Settings
     EMAIL_RESET_PASSWORD_EXPIRE_MINUTES: int = 10
     EMAIL_VERIFY_EMAIL_EXPIRE_MINUTES: int = 60 * 24 * 8
@@ -105,9 +108,6 @@ class Settings(BaseSettings):
     ALLOWED_IMAGE_TYPES: set = {"image/jpeg", "image/png", "image/gif", "image/webp"}
     ALLOWED_AUDIO_TYPES: set = {"audio/webm", "audio/mp3", "audio/wav", "audio/ogg"}
 
-    # Scraper Settings (for n8n property import)
-    SCRAPER_API_KEY: str = "a997dc64c1fde3007acf6a4ea4e658f09c87cce064eb0c5df381c03a15c3b86b"  # API key for scraper authentication
-    SCRAPER_BOT_USER_ID: str = "67b6abe496f181cd5b8f2424"  # User ID to assign as owner for imported properties
 
     def initialize(self):
         """Initialize application settings"""

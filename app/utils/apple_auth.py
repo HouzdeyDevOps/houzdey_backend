@@ -1,3 +1,4 @@
+import logging
 import jwt
 from jwt.algorithms import RSAAlgorithm
 from fastapi import HTTPException
@@ -16,9 +17,10 @@ async def get_apple_public_keys():
         response.raise_for_status()
         return response.json()['keys']
     except Exception as e:
+        logging.getLogger(__name__).error("Failed to fetch Apple public keys: %s", e)
         raise HTTPException(
             status_code=500,
-            detail=f"Failed to fetch Apple public keys: {str(e)}"
+            detail="Failed to fetch Apple public keys"
         )
 
 async def create_client_secret():
@@ -45,9 +47,10 @@ async def create_client_secret():
         )
         return client_secret
     except Exception as e:
+        logging.getLogger(__name__).error("Failed to create client secret: %s", e)
         raise HTTPException(
             status_code=500,
-            detail=f"Failed to create client secret: {str(e)}"
+            detail="Failed to create client secret"
         )
 
 async def get_apple_tokens(code: str):
@@ -67,9 +70,10 @@ async def get_apple_tokens(code: str):
         
         return response.json()
     except Exception as e:
+        logging.getLogger(__name__).error("Failed to get Apple tokens: %s", e)
         raise HTTPException(
             status_code=401,
-            detail=f"Failed to get Apple tokens: {str(e)}"
+            detail="Failed to get Apple tokens"
         )
 
 async def verify_apple_id_token(id_token: str):
@@ -104,7 +108,8 @@ async def verify_apple_id_token(id_token: str):
             'name': decoded.get('name', {})
         }
     except Exception as e:
+        logging.getLogger(__name__).error("Failed to verify Apple ID token: %s", e)
         raise HTTPException(
             status_code=401,
-            detail=f"Failed to verify Apple ID token: {str(e)}"
+            detail="Failed to verify Apple ID token"
         ) 

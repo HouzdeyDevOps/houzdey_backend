@@ -1,9 +1,12 @@
+import logging
 from fastapi import HTTPException
 import httpx
 from typing import Dict
 import hashlib
 import base64
 from app.core.config import settings
+
+logger = logging.getLogger(__name__)
 
 
 
@@ -42,9 +45,10 @@ async def get_google_oauth_token(code: str) -> Dict:
     except HTTPException:
         raise
     except Exception as e:
+        logger.error(f"Google token exchange failed: {str(e)}")
         raise HTTPException(
             status_code=401,
-            detail=f"Failed to authenticate: {str(e)}"
+            detail="Failed to authenticate with Google"
         )
 
 async def get_google_user_info(access_token: str) -> Dict:
@@ -80,7 +84,8 @@ async def get_google_user_info(access_token: str) -> Dict:
     except HTTPException:
         raise
     except Exception as e:
+        logger.error(f"Google user info fetch failed: {str(e)}")
         raise HTTPException(
             status_code=401,
-            detail=f"Failed to get user info: {str(e)}"
+            detail="Failed to get user info from Google"
         )
