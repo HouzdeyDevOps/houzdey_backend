@@ -108,9 +108,6 @@ class Settings(BaseSettings):
     ALLOWED_IMAGE_TYPES: set = {"image/jpeg", "image/png", "image/gif", "image/webp"}
     ALLOWED_AUDIO_TYPES: set = {"audio/webm", "audio/mp3", "audio/wav", "audio/ogg"}
 
-    # Scraper Settings (for n8n property import)
-    SCRAPER_API_KEY: str  # API key for scraper authentication — set via env, no default
-    SCRAPER_BOT_USER_ID: str  # User ID to assign as owner for imported properties — set via env, no default
 
     def initialize(self):
         """Initialize application settings"""
