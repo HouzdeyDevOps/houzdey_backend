@@ -1,3 +1,4 @@
+import logging
 import json
 from typing import Optional
 
@@ -70,9 +71,10 @@ async def import_property(
     except HTTPException:
         raise
     except Exception as e:
+        logging.getLogger(__name__).error("Failed to import property: %s", e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to import property: {str(e)}"
+            detail="Failed to import property"
         )
 
 
@@ -86,9 +88,10 @@ async def get_user_properties(
         properties = await property_service.get_user_properties(current_user["id"])
         return properties
     except Exception as e:
+        logging.getLogger(__name__).error("Request failed: %s", e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=str(e)
+            detail="Request failed"
         )
 
 
@@ -130,9 +133,10 @@ async def get_properties(
         )
         return result
     except Exception as e:
+        logging.getLogger(__name__).error("Request failed: %s", e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=str(e)
+            detail="Request failed"
         )
 
 
@@ -146,9 +150,10 @@ async def get_property_by_slug(
         property_obj = await property_service.get_property_by_slug(slug)
         return property_obj
     except Exception as e:
+        logging.getLogger(__name__).error("Request failed: %s", e)
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND if "not found" in str(e).lower() else status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=str(e)
+            detail="Property not found" if "not found" in str(e).lower() else "Request failed"
         )
 
 
@@ -162,9 +167,10 @@ async def get_property_by_id(
         property_obj = await property_service.get_property_by_id(property_id)
         return property_obj
     except Exception as e:
+        logging.getLogger(__name__).error("Request failed: %s", e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=str(e)
+            detail="Request failed"
         )
 
 
@@ -271,9 +277,10 @@ async def create_property(
     except HTTPException:
         raise
     except Exception as e:
+        logging.getLogger(__name__).error("Failed to create property: %s", e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to create property: {str(e)}"
+            detail="Failed to create property"
         )
 
 
@@ -397,9 +404,10 @@ async def update_property(
     except HTTPException:
         raise
     except Exception as e:
+        logging.getLogger(__name__).error("Failed to update property: %s", e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to update property: {str(e)}"
+            detail="Failed to update property"
         )
 
 
@@ -414,9 +422,10 @@ async def delete_property(
         await property_service.delete_property(property_id, current_user["id"])
         return Response(status_code=status.HTTP_204_NO_CONTENT)
     except Exception as e:
+        logging.getLogger(__name__).error("Request failed: %s", e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=str(e)
+            detail="Request failed"
         )
 
 
@@ -436,7 +445,8 @@ async def update_property_status(
         )
         return result
     except Exception as e:
+        logging.getLogger(__name__).error("Request failed: %s", e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=str(e)
+            detail="Request failed"
         )

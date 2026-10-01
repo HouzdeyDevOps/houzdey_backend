@@ -1,3 +1,4 @@
+import logging
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from typing import List, Optional
 from datetime import datetime
@@ -56,9 +57,10 @@ async def create_support_ticket(
             "ticket": ticket_dict
         }
     except Exception as e:
+        logging.getLogger(__name__).error("Failed to create support ticket: %s", e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to create support ticket: {str(e)}"
+            detail="Failed to create support ticket"
         )
 
 
@@ -83,9 +85,10 @@ async def get_user_tickets(
         
         return tickets
     except Exception as e:
+        logging.getLogger(__name__).error("Failed to fetch tickets: %s", e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to fetch tickets: {str(e)}"
+            detail="Failed to fetch tickets"
         )
 
 
@@ -115,9 +118,10 @@ async def get_ticket(
     except HTTPException:
         raise
     except Exception as e:
+        logging.getLogger(__name__).error("Failed to fetch ticket: %s", e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to fetch ticket: {str(e)}"
+            detail="Failed to fetch ticket"
         )
 
 
@@ -161,9 +165,10 @@ async def update_ticket(
     except HTTPException:
         raise
     except Exception as e:
+        logging.getLogger(__name__).error("Failed to update ticket: %s", e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to update ticket: {str(e)}"
+            detail="Failed to update ticket"
         )
 
 
@@ -211,9 +216,10 @@ async def add_ticket_response(
     except HTTPException:
         raise
     except Exception as e:
+        logging.getLogger(__name__).error("Failed to add response: %s", e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to add response: {str(e)}"
+            detail="Failed to add response"
         )
 
 
@@ -250,9 +256,10 @@ async def get_ticket_responses(
     except HTTPException:
         raise
     except Exception as e:
+        logging.getLogger(__name__).error("Failed to fetch responses: %s", e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to fetch responses: {str(e)}"
+            detail="Failed to fetch responses"
         )
 
 
@@ -286,9 +293,10 @@ async def submit_feedback(
             "feedback": feedback_dict
         }
     except Exception as e:
+        logging.getLogger(__name__).error("Failed to submit feedback: %s", e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to submit feedback: {str(e)}"
+            detail="Failed to submit feedback"
         )
 
 
@@ -310,9 +318,10 @@ async def get_user_feedback(
         
         return feedback_list
     except Exception as e:
+        logging.getLogger(__name__).error("Failed to fetch feedback: %s", e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to fetch feedback: {str(e)}"
+            detail="Failed to fetch feedback"
         )
 
 
@@ -351,9 +360,10 @@ async def get_all_tickets(
         
         return tickets
     except Exception as e:
+        logging.getLogger(__name__).error("Failed to fetch tickets: %s", e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to fetch tickets: {str(e)}"
+            detail="Failed to fetch tickets"
         )
 
 
@@ -383,7 +393,8 @@ async def get_all_feedback(
         
         return feedback_list
     except Exception as e:
+        logging.getLogger(__name__).error("Failed to fetch feedback: %s", e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to fetch feedback: {str(e)}"
+            detail="Failed to fetch feedback"
         )

@@ -1,3 +1,4 @@
+import logging
 from fastapi import APIRouter, HTTPException, Body, Depends, Response
 from app.core.security import create_token, create_refresh_token
 from app.core.cookies import set_auth_cookies
@@ -120,10 +121,13 @@ async def google_callback(
         set_auth_cookies(response, result["access_token"], result["refresh_token"])
         return result
 
+    except HTTPException:
+        raise
     except Exception as e:
+        logging.getLogger(__name__).error("Google sign-in failed: %s", e)
         raise HTTPException(
             status_code=400,
-            detail=str(e)
+            detail="Google sign-in failed"
         )
 
 # @router.post("/apple/callback")

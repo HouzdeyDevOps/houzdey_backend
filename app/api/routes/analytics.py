@@ -1,3 +1,4 @@
+import re
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
 from typing import List, Optional, Dict, Any
 from datetime import datetime, timedelta
@@ -93,7 +94,8 @@ async def track_view(
         
         return {"status": "tracked"}
     except Exception as e:
-        return {"status": "error", "message": str(e)}
+        logger.error(f"Error tracking analytics event: {str(e)}")
+        return {"status": "error", "message": "Failed to track event"}
 
 @router.get("/owner/dashboard")
 async def get_owner_dashboard_stats(current_user: User = Depends(get_current_user)):
@@ -137,7 +139,8 @@ async def get_owner_dashboard_stats(current_user: User = Depends(get_current_use
         )
         
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to get dashboard statistics: {str(e)}")
+        logging.getLogger(__name__).error("Failed to get dashboard statistics: %s", e)
+        raise HTTPException(status_code=500, detail="Failed to get dashboard statistics")
 
 @router.get("/property/{property_id}")
 async def get_property_analytics(
@@ -321,7 +324,7 @@ async def get_market_insights(
     try:
         # Get properties in the same market
         market_filter = {
-            "state": {"$regex": f"^{state}$", "$options": "i"},
+            "state": {"$regex": f"^{re.escape(state)}$", "$options": "i"},
             "type": property_type,
             "listing_type": listing_type,
             "status": "available"

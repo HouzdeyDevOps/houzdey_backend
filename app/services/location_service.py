@@ -1,3 +1,4 @@
+import logging
 from typing import List
 from fastapi import HTTPException
 from ..core.database import db_manager
@@ -12,7 +13,8 @@ class LocationService:
             states = await cursor.to_list(length=None)
             return [state["name"] for state in states]
         except Exception as e:
-            raise HTTPException(status_code=500, detail=str(e))
+            logging.getLogger(__name__).error("Request failed: %s", e)
+            raise HTTPException(status_code=500, detail="Request failed")
 
     async def get_lgas(self, state: str) -> List[str]:
         try:
@@ -24,7 +26,8 @@ class LocationService:
                 return []
             return [lga["name"] for lga in state_doc.get("lgas", [])]
         except Exception as e:
-            raise HTTPException(status_code=500, detail=str(e))
+            logging.getLogger(__name__).error("Request failed: %s", e)
+            raise HTTPException(status_code=500, detail="Request failed")
 
     async def get_wards(self, state: str, lga: str) -> List[str]:
         try:
@@ -36,4 +39,5 @@ class LocationService:
                 return []
             return state_doc["lgas"][0].get("wards", [])
         except Exception as e:
-            raise HTTPException(status_code=500, detail=str(e)) 
+            logging.getLogger(__name__).error("Request failed: %s", e)
+            raise HTTPException(status_code=500, detail="Request failed") 
