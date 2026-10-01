@@ -6,7 +6,7 @@ from jose import JWTError, jwt
 from app.core.security import verify_token, token_revoked_by_marker
 from app.core.config import settings
 from app.services.user_service import UserService
-from app.models.user import User, UserRole
+from app.models.user import User, UserRole, UserStatus
 from app.core.dependencies import get_user_service
 from app.repositories.token_repository import TokenRepository
 
@@ -65,6 +65,11 @@ async def get_current_user(
             status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
         )
 
+    if user.get("status") == UserStatus.SUSPENDED.value:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="This account has been suspended"
+        )
+
     # Enforce "logout from all devices": reject tokens issued before the invalidation marker
     invalidation_time = await token_repo.get_user_invalidation_time(user["email"])
     if token_revoked_by_marker(token, invalidation_time):
@@ -119,6 +124,8 @@ async def get_optional_current_user(
             return None
 
         user = await user_service.get_user_by_email(payload)
+        if user.get("status") == UserStatus.SUSPENDED.value:
+            return None
         invalidation_time = await token_repo.get_user_invalidation_time(user["email"])
         if token_revoked_by_marker(token, invalidation_time):
             return None

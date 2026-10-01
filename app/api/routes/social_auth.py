@@ -30,6 +30,8 @@ async def handle_social_auth(user_info: dict, auth_provider: str, user_service: 
         existing_user = None
 
     if existing_user:
+        if existing_user.get("status") == UserStatus.SUSPENDED.value:
+            raise HTTPException(status_code=403, detail="This account has been suspended")
         if not existing_user.get("email_verified", False):
             raise HTTPException(
                 status_code=400,

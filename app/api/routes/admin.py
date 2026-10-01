@@ -18,6 +18,7 @@ from app.core.database import (
 )
 from app.api.deps import get_current_admin_user, get_current_super_admin_user
 from app.models.user import User, UserRole, UserStatus
+from app.repositories.token_repository import TokenRepository
 from app.models.admin import (
     AdminStats, 
     UserManagementStats, 
@@ -36,6 +37,19 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 # Helper function to get admin ID from current_admin dict
+SECRET_USER_FIELDS = (
+    "password", "reset_code", "reset_code_expiry", "verification_code", "code_expiry",
+    "phone_otp", "phone_otp_expiry", "phone_otp_number", "phone_otp_attempts", "code_attempts",
+)
+
+
+def strip_secret_fields(user: dict) -> dict:
+    """Remove credentials/one-time codes before a user document leaves the API."""
+    for field in SECRET_USER_FIELDS:
+        user.pop(field, None)
+    return user
+
+
 def get_admin_id(current_admin: dict) -> str:
     """Extract admin ID from current_admin dict (handles both 'id' and '_id' keys)"""
     return current_admin.get("id") or str(current_admin.get("_id"))
@@ -179,7 +193,7 @@ async def get_users(
         async for user in user_collection.find(filter_query).skip(skip).limit(limit).sort("created_at", -1):
             user["id"] = str(user["_id"])
             del user["_id"]
-            del user["password"]  # Don't return password
+            strip_secret_fields(user)
             users.append(user)
         
         await log_admin_action(
@@ -206,8 +220,8 @@ async def get_user_details(
         
         user["id"] = str(user["_id"])
         del user["_id"]
-        del user["password"]
-        
+        strip_secret_fields(user)
+
         # Get user's properties count
         properties_count = await property_collection.count_documents({"owner_id": user_id})
         user["properties_count"] = properties_count
@@ -297,7 +311,12 @@ async def suspend_user(
         existing_user = await user_collection.find_one({"_id": ObjectId(user_id)})
         if not existing_user:
             raise HTTPException(status_code=404, detail="User not found")
-        
+
+        # Only a super admin may suspend another admin or super admin
+        if existing_user.get("role") in (UserRole.ADMIN.value, UserRole.SUPER_ADMIN.value) \
+                and current_admin["role"] != UserRole.SUPER_ADMIN.value:
+            raise HTTPException(status_code=403, detail="Only super admins can suspend admin accounts")
+
         # Update user status
         result = await user_collection.update_one(
             {"_id": ObjectId(user_id)},
@@ -309,6 +328,9 @@ async def suspend_user(
         )
         
         if result.modified_count > 0:
+            # End every session the suspended user already has
+            if existing_user.get("email"):
+                await TokenRepository().blacklist_all_user_tokens(existing_user["email"])
             await log_admin_action(
                 get_admin_id(current_admin), "SUSPEND", "user", user_id,
                 f"Suspended user {existing_user.get('email', 'unknown')}: {reason}"
@@ -316,7 +338,9 @@ async def suspend_user(
             return {"message": "User suspended successfully"}
         else:
             raise HTTPException(status_code=400, detail="Failed to suspend user")
-            
+
+    except HTTPException:
+        raise
     except InvalidId:
         raise HTTPException(status_code=400, detail="Invalid user ID")
     except Exception as e:
