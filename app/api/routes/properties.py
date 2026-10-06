@@ -9,7 +9,7 @@ from app.api.deps import get_current_user
 from app.core.dependencies import get_property_service
 from app.models.property import PropertyResponse, SortBy, SortOrder
 from app.services.property_service import PropertyService
-from app.utils.cloudinary_config import upload_image_to_cloudinary, upload_video_to_cloudinary
+from app.utils.storage import upload_image, upload_video
 
 router = APIRouter()
 
@@ -152,16 +152,16 @@ async def create_property(
                 detail="Invalid amenities format"
             )
         
-        # Upload images and video to Cloudinary concurrently
+        # Upload images and video to storage concurrently
         import asyncio
 
         async def upload_one_image(image):
             contents = await image.read()
-            return await upload_image_to_cloudinary(contents, "properties")
+            return await upload_image(contents, "properties")
 
         async def upload_video():
             contents = await video.read()
-            return await upload_video_to_cloudinary(contents, "properties")
+            return await upload_video(contents, "properties")
 
         tasks = [upload_one_image(img) for img in images]
         if video:
@@ -319,14 +319,14 @@ async def update_property(
             image_urls = []
             for image in images:
                 contents = await image.read()
-                url = await upload_image_to_cloudinary(contents, "properties")
+                url = await upload_image(contents, "properties")
                 image_urls.append(url)
             update_data["images"] = image_urls
         
         # Handle new video if provided
         if video:
             video_contents = await video.read()
-            video_url = await upload_video_to_cloudinary(video_contents, "properties")
+            video_url = await upload_video(video_contents, "properties")
             update_data["video"] = video_url
         
         # Update property using service

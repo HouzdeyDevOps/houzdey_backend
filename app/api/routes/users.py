@@ -13,7 +13,7 @@ from app.api.deps import get_current_user, get_access_token
 from app.core.security import create_token, create_refresh_token, verify_refresh_token, token_revoked_by_marker
 from app.core.cookies import set_auth_cookies, clear_auth_cookies
 from app.core.exceptions import AuthenticationError
-from app.utils.cloudinary_config import upload_image_to_cloudinary, delete_image_from_cloudinary, extract_public_id_from_url
+from app.utils.storage import upload_image, delete_media
 from app.repositories.token_repository import TokenRepository
 
 router = APIRouter()
@@ -336,24 +336,17 @@ async def update_current_user_profile(
         
         # Handle profile picture upload
         if profile_picture:
-            # Delete old profile picture from Cloudinary if it exists
+            # Delete the old profile picture if we host it (delete_media ignores other URLs, e.g. Google's)
             if current_user.get("profile_picture"):
-                old_picture_url = current_user["profile_picture"]
-                # Only delete if it's a Cloudinary URL (not Google OAuth profile picture)
-                if "res.cloudinary.com" in old_picture_url:
-                    try:
-                        # Extract public_id from Cloudinary URL using utility function
-                        public_id = extract_public_id_from_url(old_picture_url)
-
-                        await delete_image_from_cloudinary(public_id)
-                        
-                    except Exception as e:
-                        # Log error but don't fail the update if old image deletion fails
-                        print(f"Warning: Failed to delete old profile picture: {str(e)}")
+                try:
+                    await delete_media(current_user["profile_picture"])
+                except Exception as e:
+                    # Log error but don't fail the update if old image deletion fails
+                    print(f"Warning: Failed to delete old profile picture: {str(e)}")
             
             # Upload new profile picture
             contents = await profile_picture.read()
-            image_url = await upload_image_to_cloudinary(contents, "profile_pictures")
+            image_url = await upload_image(contents, "profile_pictures", watermark=False, max_side=800)
             update_data["profile_picture"] = image_url
         
         if update_data:

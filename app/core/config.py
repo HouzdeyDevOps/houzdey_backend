@@ -41,6 +41,17 @@ class Settings(BaseSettings):
     CLOUDINARY_API_SECRET: str
     CLOUDINARY_URL: str
     
+    # Cloudflare R2 media storage (S3 API). Leave unset to fall back to Cloudinary.
+    R2_ACCOUNT_ID: str = ""
+    R2_ACCESS_KEY_ID: str = ""
+    R2_SECRET_ACCESS_KEY: str = ""
+    R2_BUCKET: str = ""
+    R2_PUBLIC_URL: str = ""  # public bucket/custom domain, e.g. https://media.houzdey.com
+    WATERMARK_ENABLED: bool = True
+    FFMPEG_PATH: str = "ffmpeg"
+    FFPROBE_PATH: str = "ffprobe"
+    MAX_VIDEO_SIZE: int = 100 * 1024 * 1024  # 100MB
+
     # Google OAuth Settings
     GOOGLE_CLIENT_ID: str
     GOOGLE_CLIENT_SECRET: str
