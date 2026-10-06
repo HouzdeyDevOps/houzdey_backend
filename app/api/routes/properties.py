@@ -159,13 +159,13 @@ async def create_property(
             contents = await image.read()
             return await upload_image(contents, "properties")
 
-        async def upload_video():
+        async def upload_property_video():
             contents = await video.read()
             return await upload_video(contents, "properties")
 
         tasks = [upload_one_image(img) for img in images]
         if video:
-            tasks.append(upload_video())
+            tasks.append(upload_property_video())
 
         results = await asyncio.gather(*tasks)
 
