@@ -2,7 +2,7 @@ import logging
 import json
 from typing import Optional
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
+from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, Query, UploadFile, status
 from fastapi.responses import Response
 
 from app.api.deps import get_current_user
@@ -138,6 +138,7 @@ async def create_property(
     property_status: str = Form(default="available", alias="status"),
     images: list[UploadFile] = File(...),
     video: Optional[UploadFile] = File(None),
+    background_tasks: BackgroundTasks = BackgroundTasks(),
     current_user: dict = Depends(get_current_user),
     property_service: PropertyService = Depends(get_property_service)
 ):
@@ -161,7 +162,7 @@ async def create_property(
 
         async def upload_property_video():
             contents = await video.read()
-            return await upload_video(contents, "properties")
+            return await upload_video(contents, "properties", background_tasks)
 
         tasks = [upload_one_image(img) for img in images]
         if video:
@@ -249,6 +250,7 @@ async def update_property(
     property_status: Optional[str] = Form(None, alias="status"),
     images: Optional[list[UploadFile]] = File(None),
     video: Optional[UploadFile] = File(None),
+    background_tasks: BackgroundTasks = BackgroundTasks(),
     current_user: dict = Depends(get_current_user),
     property_service: PropertyService = Depends(get_property_service)
 ):
@@ -326,7 +328,7 @@ async def update_property(
         # Handle new video if provided
         if video:
             video_contents = await video.read()
-            video_url = await upload_video(video_contents, "properties")
+            video_url = await upload_video(video_contents, "properties", background_tasks)
             update_data["video"] = video_url
         
         # Update property using service

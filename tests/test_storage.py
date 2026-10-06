@@ -144,3 +144,16 @@ def test_falls_back_to_cloudinary_when_r2_unset(monkeypatch):
 
     monkeypatch.setattr(storage.cloudinary_config, "upload_image_to_cloudinary", fake_upload)
     assert asyncio.run(storage.upload_image(_png(), "properties")) == "https://res.cloudinary.com/x/pic.jpg"
+
+
+def test_video_upload_with_background_tasks_returns_url_before_processing(r2):
+    from fastapi import BackgroundTasks
+
+    puts, _ = r2
+    tasks = BackgroundTasks()
+    fake_mp4 = b"\x00\x00\x00ftypmp42" + b"\x00" * 64
+    url = asyncio.run(storage.upload_video(fake_mp4, "properties", tasks))
+    assert url.endswith(".mp4") and "/properties/videos/" in url
+    assert puts == []  # nothing stored until the background task runs
+    asyncio.run(tasks())
+    assert len(puts) == 1 and puts[0]["Key"] == url.split(".example.com/")[1]

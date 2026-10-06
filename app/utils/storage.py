@@ -15,7 +15,7 @@ from typing import Optional
 
 import boto3
 from botocore.config import Config
-from fastapi import HTTPException
+from fastapi import BackgroundTasks, HTTPException
 from PIL import Image, ImageDraw, ImageOps
 
 from app.core.config import settings
@@ -172,8 +172,26 @@ async def upload_image(contents: bytes, folder: str, *, watermark: bool = True, 
     return _public_url(key)
 
 
-async def upload_video(contents: bytes, folder: str) -> str:
-    """Validate, watermark and store a video; returns its public URL."""
+async def _store_video(key: str, contents: bytes) -> None:
+    """Watermark (when possible) and store a video under `key`. Never raises: it can run after the response."""
+    try:
+        data = await asyncio.to_thread(_process_video, contents) if settings.WATERMARK_ENABLED else None
+        content_type = "video/mp4"
+        if data is None:
+            data = contents
+            if contents.startswith(b"\x1aE\xdf\xa3"):
+                content_type = "video/webm"
+        await asyncio.to_thread(_put, key, data, content_type)
+    except Exception:
+        logger.exception("Storing video %s failed", key)
+
+
+async def upload_video(contents: bytes, folder: str, background_tasks: Optional[BackgroundTasks] = None) -> str:
+    """Validate, watermark and store a video; returns its public URL.
+
+    With `background_tasks`, the slow ffmpeg step runs after the HTTP response: the URL is returned
+    immediately and the file appears at it once processing finishes.
+    """
     if len(contents) > settings.MAX_VIDEO_SIZE:
         raise HTTPException(status_code=400, detail=f"Video exceeds the {settings.MAX_VIDEO_SIZE // (1024 * 1024)}MB size limit")
     if not _is_video(contents[:12]):
@@ -181,15 +199,12 @@ async def upload_video(contents: bytes, folder: str) -> str:
     if not r2_enabled():
         return await cloudinary_config.upload_video_to_cloudinary(contents, folder)
 
-    data = await asyncio.to_thread(_process_video, contents) if settings.WATERMARK_ENABLED else None
-    if data is None:
-        data = contents
-        content_type = "video/webm" if contents.startswith(b"\x1aE\xdf\xa3") else "video/mp4"
-        ext = "webm" if content_type == "video/webm" else "mp4"
+    # Always .mp4: the key is fixed before processing, and a WebM fallback keeps its own content type.
+    key = f"{folder}/videos/{uuid.uuid4().hex}.mp4"
+    if background_tasks is not None:
+        background_tasks.add_task(_store_video, key, contents)
     else:
-        content_type, ext = "video/mp4", "mp4"
-    key = f"{folder}/videos/{uuid.uuid4().hex}.{ext}"
-    await asyncio.to_thread(_put, key, data, content_type)
+        await _store_video(key, contents)
     return _public_url(key)
 
 
