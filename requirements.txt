@@ -8,6 +8,8 @@ cffi
 charset-normalizer
 click
 cloudinary
+boto3
+pillow
 sendgrid
 colorama
 cryptography

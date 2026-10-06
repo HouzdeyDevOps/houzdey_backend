@@ -530,14 +530,20 @@ async def delete_property_admin(
         if "images" in existing_property:
             for image_url in existing_property["images"]:
                 try:
-                    from app.utils.cloudinary_config import extract_public_id_from_url, delete_image_from_cloudinary
-                    public_id = extract_public_id_from_url(image_url)
-                    success = await delete_image_from_cloudinary(public_id)
+                    from app.utils.storage import delete_media
+                    success = await delete_media(image_url)
                     if not success:
                         print(f"Warning: Failed to delete image {image_url}")
                 except Exception as e:
                     print(f"Failed to delete image {image_url}: {str(e)}")
                     # Continue deletion even if image cleanup fails
+
+        if existing_property.get("video"):
+            try:
+                from app.utils.storage import delete_media
+                await delete_media(existing_property["video"])
+            except Exception as e:
+                print(f"Failed to delete video {existing_property['video']}: {str(e)}")
         
         # Delete property
         result = await property_collection.delete_one({"_id": ObjectId(property_id)})
