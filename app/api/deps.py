@@ -2,7 +2,6 @@ from datetime import datetime
 from fastapi import Depends, HTTPException, status, Request  # type: ignore
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from typing import Optional
-from jose import JWTError, jwt
 from app.core.security import verify_token, token_revoked_by_marker
 from app.core.config import settings
 from app.services.user_service import UserService

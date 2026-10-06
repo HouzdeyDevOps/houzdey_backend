@@ -2,7 +2,8 @@ import calendar
 from datetime import datetime, timedelta
 from typing import Optional, Any, Union
 from fastapi.security import OAuth2PasswordBearer
-from jose import JWTError, jwt
+import jwt
+from jwt import PyJWTError
 from passlib.context import CryptContext
 from pydantic import ValidationError
 from fastapi import HTTPException, status
@@ -89,7 +90,7 @@ def verify_token(
             return TokenData(**payload)
         return str(payload["sub"])
 
-    except (JWTError, ValidationError):
+    except (PyJWTError, ValidationError):
         if raise_exception:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
@@ -135,7 +136,7 @@ def token_revoked_by_marker(token: str, invalidation_time: Optional[datetime]) -
         return False
     try:
         iat = int(jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])["iat"])
-    except (JWTError, KeyError, ValueError):
+    except (PyJWTError, KeyError, ValueError):
         return True
     return iat < calendar.timegm(invalidation_time.utctimetuple())
 

@@ -14,7 +14,6 @@ sendgrid
 colorama
 cryptography
 dnspython
-ecdsa
 email_validator
 environs
 fastapi
@@ -27,7 +26,6 @@ MarkupSafe
 marshmallow
 motor
 passlib
-pyasn1
 pycparser
 pydantic
 pydantic-settings
@@ -35,11 +33,10 @@ pydantic_core
 pymongo
 python-dotenv
 python-engineio>=4.9.0
-python-jose
+pyjwt
 python-multipart
 python-socketio>=5.11.0
 requests
-rsa
 simple-websocket==1.1.0
 six
 sniffio
