@@ -97,6 +97,12 @@ class Settings(BaseSettings):
     BREVO_SMTP_PASSWORD: str  # Your Brevo SMTP key/password
     EMAIL_FROM: str
     
+    # SMS: providers are tried in order; Brevo needs an API key (xkeysib-...), not the SMTP key
+    SMS_PROVIDERS: str = "brevo,termii"
+    BREVO_API_KEY: str = ""
+    BREVO_SMS_SENDER: str = "Houzdey"  # up to 11 letters/digits
+    BREVO_SMS_VERIFY_SECONDS: int = 6  # wait this long for Brevo to report a rejection; 0 = do not check
+
     # Termii SMS Settings
     TERMII_API_KEY: str
     TERMII_BASE_URL: str = "https://v3.api.termii.com"
