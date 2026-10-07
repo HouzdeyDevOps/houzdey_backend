@@ -80,12 +80,25 @@ def main():
         sys.exit(1)
 
     print(f"\nSending SMS from '{sender}' to +{phone}")
-    status, result = call("POST", "/transactionalSMS/sms", api_key, {
+    status, result = call("POST", "/transactionalSMS/send", api_key, {
         "sender": sender, "recipient": phone, "content": args.message, "type": "transactional",
     })
     if status in (200, 201):
         print(f"  [ok] Brevo accepted it: {json.dumps(result)}")
-        print("  Accepted is not delivered: check the phone, and Brevo's SMS logs if it does not arrive.")
+        print("  Accepted is not delivered. Checking Brevo's event log for this number...")
+        import time
+        message_id = str(result.get("messageId", ""))
+        for _ in range(6):
+            time.sleep(5)
+            _, events = call("GET", f"/transactionalSMS/statistics/events?limit=10&phoneNumber={phone}&sort=desc", api_key)
+            mine = [e for e in events.get("events", []) if str(e.get("messageId")) == message_id]
+            if mine:
+                for e in mine:
+                    print(f"    {e.get('date')}  {e.get('event')}  {e.get('reason', '')}")
+                if any(e.get("event") in ("delivered", "hardBounces", "softBounces", "blocked", "rejected") for e in mine):
+                    break
+        else:
+            print("    no delivery event yet; check Brevo's SMS logs and the phone")
         return
     print(f"  [FAIL] {status}: {result.get('code', '')} {result.get('message', result)}")
     sys.exit(1)
